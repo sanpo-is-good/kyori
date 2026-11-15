@@ -2291,7 +2291,7 @@
         if (hot > 0) ts.unshift(ts.splice(hot, 1)[0]);
         if (ts.length) {
           m.hero = heroOf(ts[0], f, f.dist ? `${ts[0].name} まで` : `${ts[0].name} は`);
-          m.rows = ts.slice(1, 4).map((o) => rowOf(o, f));
+          m.rows = ts.slice(1).map((o) => rowOf(o, f));
         }
         if (ts.some((o) => o.distance != null && o.distance <= g.radius)) m.note = { text: '確保できる！', bg: TV.yellow, fg: TV.ink };
         m.sub = `のこり${left}人`;
@@ -2331,12 +2331,12 @@
         // 方角だけ：距離は出さない。名前順のいちばん上の人の方角を大きく
         const ps = people.filter((o) => q.players.includes(o.pid) && o.distance != null).sort(byName);
         m.hero = ps.length ? heroOf(ps[0], { dir: true }, `${ps[0].name} は`) : { kind: 'text', label: '', text: '位置を待っています', small: true };
-        m.rows = ps.slice(1, 4).map((o) => rowOf(o, { dir: true }));
+        m.rows = ps.slice(1).map((o) => rowOf(o, { dir: true }));
         return m;
       } else m.hero = { kind: 'dist', label: '集合まで あと', value: Math.max(0, spread - q.radius) };
       if (!S.gm) {
         m.rows = people.filter((o) => q.players.includes(o.pid) && o.distance != null)
-          .sort((a, b) => a.distance - b.distance).slice(0, 3).map((o) => rowOf(o, { dist: true }));
+          .sort((a, b) => a.distance - b.distance).map((o) => rowOf(o, { dist: true }));
       }
       return m;
     }
@@ -2351,13 +2351,13 @@
     if (mode === 'direction') {
       m.show = '方角だけ';
       const ps = people.slice().sort(byName);
-      if (ps.length) { m.hero = heroOf(ps[0], { dir: true }, `${ps[0].name} は`); m.rows = ps.slice(1, 4).map((o) => rowOf(o, { dir: true })); }
+      if (ps.length) { m.hero = heroOf(ps[0], { dir: true }, `${ps[0].name} は`); m.rows = ps.slice(1).map((o) => rowOf(o, { dir: true })); }
       else m.hero = { kind: 'text', label: '', text: 'ほかの人を待っています', small: true };
       return m;
     }
     m.show = '距離だけ';
     const ps = people.slice().sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
-    if (ps.length) { m.hero = heroOf(ps[0], { dist: true }, `${ps[0].name} まで`); m.rows = ps.slice(1, 4).map((o) => rowOf(o, { dist: true })); }
+    if (ps.length) { m.hero = heroOf(ps[0], { dist: true }, `${ps[0].name} まで`); m.rows = ps.slice(1).map((o) => rowOf(o, { dist: true })); }
     else m.hero = { kind: 'text', label: '', text: 'ほかの人を待っています', small: true };
     return m;
   }
@@ -2519,19 +2519,36 @@
     const bottom = H - (land ? 34 : 44) * u;
     let y = bottom;
     const maxW = (land ? W * 0.62 : W) - mx * 2;
-    // 小さいチップ（ほかの人）
+    // 小さいチップ（ほかの人全員）。人数が多いほど小さくして、数段に並べる
     if (m.rows.length) {
-      const chipH = 50 * u, gap = 10 * u;
-      const nameF = `800 ${22 * u}px ${F_LABEL}`, valF = `${26 * u}px ${F_DISPLAY}`;
-      const chips = m.rows.map((r) => {
-        const val = r.value != null ? fmt(r.value).join('') : r.dir ? r.dir.text : '…';
-        const w = 22 * u + textW(r.name, nameF) + 12 * u + (r.dir && r.value == null ? 34 * u : 0) + textW(val, valF) + 22 * u;
+      const n = m.rows.length;
+      const k = (n <= 4 ? 1 : n <= 8 ? 0.84 : 0.72) * u;
+      const chipH = 50 * k, gap = 8 * k;
+      const nameF = `800 ${22 * k}px ${F_LABEL}`, valF = `${26 * k}px ${F_DISPLAY}`;
+      const chipOf = (r, val) => {
+        const w = 22 * k + textW(r.name, nameF) + (r.name ? 12 * k : 0) + (r.dir && r.value == null ? 34 * k : 0) + textW(val, valF) + 22 * k;
         return { r, val, w };
-      });
+      };
+      const chips = m.rows.map((r) => chipOf(r, r.value != null ? fmt(r.value).join('') : r.dir ? r.dir.text : '…'));
       // 横に並べ、はみ出したら上の段へ
+      const rowW = W - mx * 2;
+      const maxLines = land ? 3 : 5;
       const lines = [[]]; let lw = 0;
-      for (const c of chips) {
-        if (lw + c.w > W - mx * 2 && lines[lines.length - 1].length) { lines.push([]); lw = 0; }
+      for (let i = 0; i < chips.length; i++) {
+        const c = chips[i];
+        if (lw + c.w > rowW && lines[lines.length - 1].length) {
+          if (lines.length === maxLines) { // 入りきらない人数は「ほか◯人」にまとめる
+            const last = lines[lines.length - 1];
+            let hidden = chips.length - i;
+            let rest = chipOf({ name: '' }, `ほか${hidden}人`);
+            while (last.length && last.reduce((a, b) => a + b.w + gap, 0) + rest.w > rowW) {
+              last.pop(); hidden += 1; rest = chipOf({ name: '' }, `ほか${hidden}人`);
+            }
+            last.push(rest);
+            break;
+          }
+          lines.push([]); lw = 0;
+        }
         lines[lines.length - 1].push(c); lw += c.w + gap;
       }
       for (let li = lines.length - 1; li >= 0; li--) {
@@ -2539,12 +2556,14 @@
         y -= chipH;
         for (const c of lines[li]) {
           cx.save(); cx.globalAlpha = 0.72; cx.fillStyle = TV.ink; cx.fillRect(x, y, c.w, chipH); cx.restore();
-          cx.fillStyle = TV.yellow; cx.fillRect(x, y, 5 * u, chipH);
-          let tx = x + 22 * u;
-          telopText(c.r.name, tx, y + 34 * u, { font: nameF, fill: TV.white });
-          tx += textW(c.r.name, nameF) + 12 * u;
-          if (c.r.dir && c.r.value == null) { arrowDisc(tx + 13 * u, y + chipH / 2, 14 * u, c.r.dir.rel, u * 0.5); tx += 34 * u; }
-          telopText(c.val, tx, y + 36 * u, { font: valF, fill: TV.yellow });
+          cx.fillStyle = TV.yellow; cx.fillRect(x, y, 5 * k, chipH);
+          let tx = x + 22 * k;
+          if (c.r.name) {
+            telopText(c.r.name, tx, y + 34 * k, { font: nameF, fill: TV.white });
+            tx += textW(c.r.name, nameF) + 12 * k;
+          }
+          if (c.r.dir && c.r.value == null) { arrowDisc(tx + 13 * k, y + chipH / 2, 14 * k, c.r.dir.rel, k * 0.5); tx += 34 * k; }
+          telopText(c.val, tx, y + 36 * k, { font: valF, fill: TV.yellow });
           x += c.w + gap;
         }
         y -= gap;
