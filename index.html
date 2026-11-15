@@ -12,6 +12,7 @@
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
 <style>
   :root {
     --bg: #0d0d0f;
@@ -213,6 +214,71 @@
   .pin.caught .pin-name { color: var(--dim); text-decoration: line-through; }
   .pin.off { opacity: .45; }
 
+  /* ---------- 撮影（番組テロップ） ---------- */
+  .camchip { display: inline-flex; align-items: center; gap: 6px; }
+  .camchip i { width: 8px; height: 8px; border-radius: 50%; background: #E8262E; }
+  body.camming { overflow: hidden; }
+  #cam, #camReview {
+    position: fixed; inset: 0; z-index: 50; max-width: none; margin: 0; background: #000; color: #fff;
+    display: flex; flex-direction: column; font-family: "M PLUS 1p", var(--sans);
+  }
+  #cam[hidden], #camReview[hidden] { display: none !important; }
+  .cam-top {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: calc(env(safe-area-inset-top) + 10px) 16px 10px;
+  }
+  .cam-stage { flex: 1; min-height: 0; position: relative; }
+  #camCanvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #camVideo { position: absolute; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
+  .cam-btn {
+    width: 44px; height: 44px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+    background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center;
+  }
+  .cam-btn:focus-visible, .cam-tog:focus-visible, .shutter:focus-visible { outline: 3px solid #FFD60A; outline-offset: 2px; }
+  .cam-tools { display: flex; gap: 8px; }
+  .cam-tog {
+    height: 36px; padding: 0 14px; border-radius: 18px; cursor: pointer; font-family: inherit; font-weight: 800; font-size: 13px;
+    border: 1.5px solid rgba(255,255,255,.55); background: transparent; color: #fff;
+  }
+  .cam-tog[aria-pressed="true"] { background: #FFD60A; border-color: #FFD60A; color: #000; }
+  .cam-tog:disabled { opacity: .35; }
+  .cam-rec {
+    display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px 6px; border-radius: 4px;
+    background: #E8262E; color: #fff; font-family: "Dela Gothic One", var(--sans); font-size: 18px; letter-spacing: .02em;
+  }
+  .cam-rec i { width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: blink 1s infinite; }
+  .cam-rec small { font-family: "M PLUS 1p", var(--sans); font-weight: 800; font-size: 12px; opacity: .9; }
+  .cam-bottom {
+    flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px;
+    padding: 14px 24px calc(env(safe-area-inset-bottom) + 18px);
+  }
+  .cam-flip { justify-self: start; width: 52px; height: 52px; }
+  .cam-hint { justify-self: end; font-size: 12px; font-weight: 800; color: rgba(255,255,255,.7); text-align: right; max-width: 9em; line-height: 1.4; }
+  .shutter {
+    width: 78px; height: 78px; border-radius: 50%; border: 5px solid #fff; background: transparent; padding: 0; cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .shutter span { width: 58px; height: 58px; border-radius: 50%; background: #E8262E; transition: width .18s, height .18s, border-radius .18s; }
+  .shutter.on span { width: 28px; height: 28px; border-radius: 6px; }
+  .shutter:disabled { opacity: .4; }
+  .cam-err {
+    position: absolute; left: 20px; right: 20px; top: 34%; padding: 18px 20px; border-radius: 10px;
+    background: #fff; color: #000; font-weight: 800; font-size: 15px; line-height: 1.7; border-left: 8px solid #E8262E;
+  }
+  @media (orientation: landscape) {
+    #cam { flex-direction: row; }
+    .cam-top { flex-direction: column; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 14px) 10px 14px calc(env(safe-area-inset-left) + 12px); }
+    .cam-tools { flex-direction: column; }
+    .cam-bottom { grid-template-columns: none; grid-template-rows: 1fr auto 1fr; justify-items: center; padding: 14px calc(env(safe-area-inset-right) + 14px) 14px 10px; }
+    .cam-flip { justify-self: center; align-self: start; }
+    .cam-hint { justify-self: center; align-self: end; text-align: center; }
+  }
+  #camPlayback { flex: 1; min-height: 0; width: 100%; background: #000; }
+  .review-actions { flex: none; display: grid; gap: 8px; padding: 14px 20px calc(env(safe-area-inset-bottom) + 18px); max-width: 520px; width: 100%; margin: 0 auto; }
+  .review-info { margin: 0 0 4px; font-size: 13px; color: rgba(255,255,255,.75); text-align: center; }
+  .btn.tv { background: #FFD60A; color: #000; font-family: "M PLUS 1p", var(--sans); font-weight: 800; }
+  #camReview .btn.ghost { border-color: rgba(255,255,255,.3); }
+
   .foot { color: var(--faint); font-size: 11.5px; line-height: 1.7; margin-top: 34px; }
 
   .toast {
@@ -254,6 +320,7 @@
   <div class="bar">
     <div class="roomid"><small>ROOM</small><b id="roomCode">----</b></div>
     <div class="actions">
+      <button class="chip camchip" id="camOpen"><i></i>撮影</button>
       <button class="chip primary" id="share">招待</button>
       <button class="chip" id="leave">退出</button>
     </div>
@@ -365,6 +432,41 @@
   </section>
 
   <p class="foot">画面を開いている間だけ位置を送ります。スリープ中や別アプリ表示中は更新が止まります。距離・方角はGPSの誤差を含み、近いほど方角はぶれます。</p>
+</main>
+
+<!-- 撮影（番組テロップ付き） -->
+<main id="cam" hidden>
+  <div class="cam-top">
+    <button class="cam-btn" id="camClose" aria-label="撮影をやめてルームに戻る">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    </button>
+    <div class="cam-rec" id="camRecTag" hidden><i></i><span id="camRecTime">0:00</span><small id="camRecSize"></small></div>
+    <div class="cam-tools">
+      <button class="cam-tog" id="camTelop" aria-pressed="true">テロップ</button>
+      <button class="cam-tog" id="camQuality" aria-label="画質">720p</button>
+    </div>
+  </div>
+  <div class="cam-stage"><canvas id="camCanvas" width="720" height="1280"></canvas></div>
+  <div class="cam-bottom">
+    <button class="cam-btn cam-flip" id="camFlip" aria-label="前と後ろのカメラを切り替える">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M4 9a8 8 0 0 1 14.5-3.5M20 15a8 8 0 0 1-14.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 2v3.5H15M5.5 22v-3.5H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="shutter" id="camShutter" aria-label="録画を始める"><span></span></button>
+    <span class="cam-hint" id="camHint">テロップごと録画されます</span>
+  </div>
+  <video id="camVideo" playsinline muted autoplay></video>
+  <div class="cam-err" id="camErr" hidden></div>
+</main>
+
+<!-- 撮った動画 -->
+<main id="camReview" hidden>
+  <video id="camPlayback" controls playsinline></video>
+  <div class="review-actions">
+    <p class="review-info" id="camInfo"></p>
+    <button class="btn tv" id="camSave">スマホに保存</button>
+    <button class="btn ghost" id="camRetake">撮り直す</button>
+    <button class="btn ghost" id="camBack">ルームに戻る</button>
+  </div>
 </main>
 
 <!-- 振り返り -->
@@ -1999,6 +2101,604 @@
     $('#rpClose').click();
   });
   renderRecLists(true);
+
+  // ================= 撮影（番組テロップ付き） =================
+  // kyori の画面のままカメラで撮るので、撮影中も位置を送り続けられる。
+  // カメラ映像とテロップを canvas に重ねて描き、その canvas を録画する（テロップは動画に焼き込まれる）。
+  // ルームコードは暗号の鍵なので、テロップには絶対に出さない。
+  const TV = { yellow: '#FFD60A', red: '#E8262E', cobalt: '#1F3FD1', white: '#FFFFFF', ink: '#000000', sky: '#12B5FF', grey: '#6B6B73' };
+  const F_DISPLAY = '"Dela Gothic One", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif';
+  const F_LABEL = '"M PLUS 1p", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif';
+  const CAM = {
+    open: false, video: null, audio: null, facing: 'environment', telop: true, q: 720, W: 720, H: 1280,
+    raf: 0, rec: null, chunks: [], bytes: 0, recStart: 0, mime: '', model: null, modelAt: 0,
+    events: [], prev: null, blob: null, url: null, glyphs: new Set(), starting: false,
+  };
+  const camCanvas = $('#camCanvas');
+  const cx = camCanvas.getContext('2d');
+  const camVideo = $('#camVideo');
+
+  // ---- フォント：テロップに使う文字を先に読み込む（日本語フォントは文字ごとに分割されている） ----
+  const GLYPH_BASE = '0123456789:.mk ±!！？…人分秒残り経過スタートまで鬼の逃げる確保された観戦中まもなく集合ゲーム距離だけ方角鬼ごっこ'
+    + 'ゲームマスターのこり参加者時間切れ終了完了タイム判定中全員そろったよがく近い！動き出した勝ち逃げ切り成功いちばん離れている2人あとを待っています位置取得'
+    + 'kyori' + REL8.join('') + ABS8.join('') + 'できる誰もいません';
+  function needGlyphs(text) {
+    const fresh = [...new Set([...text])].filter((ch) => !CAM.glyphs.has(ch));
+    if (!fresh.length || !document.fonts || !document.fonts.load) return;
+    fresh.forEach((ch) => CAM.glyphs.add(ch));
+    const t = fresh.join('');
+    document.fonts.load(`40px "Dela Gothic One"`, t).catch(() => {});
+    document.fonts.load(`800 40px "M PLUS 1p"`, t).catch(() => {});
+  }
+
+  // ---- テロップに出す内容（その人の画面で見えている情報だけ） ----
+  const hhmm = (ms) => { const d = new Date(ms); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  const dirOf = (o) => {
+    const rel = C.active ? o.bearing - C.heading : o.bearing;
+    return { rel, text: C.active ? REL8[oct(rel)] : ABS8[oct(o.bearing)] };
+  };
+  function gatherSpread(ga) { // 集合ゲーム：いちばん離れている2人の距離（そろっていなければ null）
+    const pos = [];
+    for (const pid of ga.q.players) {
+      if (pid === S.pid && !S.gm) { if (!S.last) return null; pos.push(S.last); continue; }
+      const p = S.peers.get(pid);
+      if (!p || p.kind !== 'player') return null;
+      pos.push(p);
+    }
+    let max = 0;
+    for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) max = Math.max(max, haversine(pos[i], pos[j]));
+    return pos.length >= 2 ? Math.round(max) : null;
+  }
+
+  function overlayModel(now) {
+    const mode = S.state.mode, gi = gameInfo(now), ga = gatherInfo(now);
+    const people = peerView(now).filter((o) => now - (S.peers.get(o.pid)?.ts || 0) < FORGET_AFTER);
+    const m = { clock: hhmm(now), show: '', timer: null, role: null, hero: null, rows: [], danger: false, note: null };
+    const heroOf = (o, f, label) => {
+      if (o.distance == null) return { kind: 'text', label, text: S.last ? '位置を待っています' : '位置を取得中…', small: true };
+      const d = f.dir ? dirOf(o) : null;
+      if (f.dist && f.dir) return { kind: 'both', label, value: o.distance, rel: d.rel, text: d.text };
+      if (f.dir) return { kind: 'dir', label, rel: d.rel, text: d.text };
+      return { kind: 'dist', label, value: o.distance };
+    };
+    const rowOf = (o, f) => ({ name: o.name, value: f.dist && o.distance != null ? o.distance : null, dir: f.dir && o.distance != null ? dirOf(o) : null });
+
+    if (gi) {
+      const g = gi.g;
+      m.show = '鬼ごっこ';
+      m.timer = gi.phase === 'countdown' ? { label: 'スタートまで', text: String(Math.ceil((g.startAt - now) / 1000)) }
+        : { label: '残り', ms: gi.ended ? 0 : gi.end - now, low: !gi.ended && gi.end - now < 60000 };
+      const left = g.runners.filter((r) => !g.caught[r]).length;
+      if (S.gm) {
+        m.role = { text: 'ゲームマスター', bg: TV.ink, fg: TV.yellow };
+        m.hero = gi.ended ? { kind: 'text', label: 'けっか', text: gi.winner === 'oni' ? '鬼の勝ち！' : '逃げ切り成功！' }
+          : { kind: 'text', label: '逃げている人', text: `のこり${left}人` };
+        return m;
+      }
+      m.role = { oni: { text: '鬼', bg: TV.red, fg: TV.white }, runner: { text: '逃げる人', bg: TV.sky, fg: TV.ink },
+        caught: { text: '確保された', bg: TV.grey, fg: TV.white }, spectator: { text: '観戦中', bg: TV.ink, fg: TV.white } }[gi.role];
+      if (gi.ended) { m.hero = { kind: 'text', label: 'けっか', text: gi.winner === 'oni' ? '鬼の勝ち！' : '逃げ切り成功！' }; return m; }
+      if (gi.phase === 'countdown') { m.hero = { kind: 'text', label: 'まもなくスタート', text: String(Math.ceil((g.startAt - now) / 1000)) }; return m; }
+      const byPid = new Map(people.map((o) => [o.pid, o]));
+      if (gi.role === 'oni') {
+        if (gi.phase === 'headstart') { m.hero = { kind: 'time', label: '逃げる時間 のこり', ms: g.startAt + g.headStart * 1000 - now }; return m; }
+        const f = { dist: g.seeOni !== 'dir', dir: g.seeOni !== 'dist' };
+        const ts = g.runners.filter((r) => !g.caught[r]).map((r) => byPid.get(r)).filter(Boolean);
+        ts.sort(f.dist ? (a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) : byName);
+        const hot = ts.findIndex((o) => o.distance != null && o.distance <= g.radius); // 確保できる人を大きく
+        if (hot > 0) ts.unshift(ts.splice(hot, 1)[0]);
+        if (ts.length) {
+          m.hero = heroOf(ts[0], f, f.dist ? `${ts[0].name} まで` : `${ts[0].name} は`);
+          m.rows = ts.slice(1, 4).map((o) => rowOf(o, f));
+        }
+        if (ts.some((o) => o.distance != null && o.distance <= g.radius)) m.note = { text: '確保できる！', bg: TV.yellow, fg: TV.ink };
+        m.sub = `のこり${left}人`;
+        return m;
+      }
+      if (gi.role === 'runner') {
+        const f = { dist: g.seeRunner !== 'dir', dir: g.seeRunner !== 'dist' };
+        const o = byPid.get(g.oni);
+        m.hero = o ? heroOf(o, f, f.dist ? '鬼まで' : '鬼は') : { kind: 'text', label: '鬼', text: '位置を待っています', small: true };
+        if (f.dist && o && o.distance != null && o.distance <= Math.max(50, g.radius * 2.5)) { m.danger = true; m.note = { text: '鬼が近い！', bg: TV.red, fg: TV.white }; }
+        if (gi.phase === 'headstart') m.note = { text: `逃げて！ あと${mmss(g.startAt + g.headStart * 1000 - now)}`, bg: TV.yellow, fg: TV.ink };
+        return m;
+      }
+      m.hero = { kind: 'text', label: '', text: gi.role === 'caught' ? '確保されました' : '観戦中' };
+      return m;
+    }
+
+    if (ga) {
+      const q = ga.q;
+      m.show = '集合ゲーム';
+      if (ga.phase === 'countdown') m.timer = { label: 'スタートまで', text: String(Math.ceil((q.startAt - now) / 1000)) };
+      else if (ga.ended) m.timer = { label: ga.result === 'gathered' ? 'タイム' : '経過', ms: Math.max(0, ga.endAt - q.startAt) };
+      else if (q.duration > 0) m.timer = { label: '残り', ms: ga.end - now, low: ga.end - now < 60000 };
+      else m.timer = { label: '経過', ms: now - q.startAt };
+      if (S.gm) m.role = { text: 'ゲームマスター', bg: TV.ink, fg: TV.yellow };
+      else if (ga.role === 'spectator') m.role = { text: '観戦中', bg: TV.ink, fg: TV.white };
+      if (ga.ended) {
+        m.hero = ga.result === 'gathered' ? { kind: 'time', label: '集合完了！ タイム', ms: ga.endAt - q.startAt }
+          : { kind: 'text', label: 'けっか', text: ga.result === 'timeup' ? '時間切れ' : '終了' };
+        return m;
+      }
+      if (ga.phase === 'countdown') { m.hero = { kind: 'text', label: 'まもなくスタート', text: String(Math.ceil((q.startAt - now) / 1000)) }; return m; }
+      const spread = gatherSpread(ga);
+      if (Gat.since) m.hero = { kind: 'text', label: '全員そろった！', text: '判定中…' };
+      else if (spread == null) m.hero = { kind: 'text', label: '集合まで', text: '位置を待っています', small: true };
+      else m.hero = { kind: 'dist', label: '集合まで あと', value: Math.max(0, spread - q.radius) };
+      if (!S.gm) {
+        m.rows = people.filter((o) => q.players.includes(o.pid) && o.distance != null)
+          .sort((a, b) => a.distance - b.distance).slice(0, 3).map((o) => rowOf(o, { dist: true }));
+      }
+      return m;
+    }
+
+    if (mode === 'tag') { m.show = '鬼ごっこ'; m.hero = { kind: 'text', label: '', text: 'スタート待ち', small: true }; return m; }
+    if (S.gm) {
+      m.show = mode === 'direction' ? '方角だけ' : '距離だけ';
+      m.role = { text: 'ゲームマスター', bg: TV.ink, fg: TV.yellow };
+      m.hero = { kind: 'text', label: '参加者', text: `${people.length}人` };
+      return m;
+    }
+    if (mode === 'direction') {
+      m.show = '方角だけ';
+      const ps = people.slice().sort(byName);
+      if (ps.length) { m.hero = heroOf(ps[0], { dir: true }, `${ps[0].name} は`); m.rows = ps.slice(1, 4).map((o) => rowOf(o, { dir: true })); }
+      else m.hero = { kind: 'text', label: '', text: 'ほかの人を待っています', small: true };
+      return m;
+    }
+    m.show = '距離だけ';
+    const ps = people.slice().sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
+    if (ps.length) { m.hero = heroOf(ps[0], { dist: true }, `${ps[0].name} まで`); m.rows = ps.slice(1, 4).map((o) => rowOf(o, { dist: true })); }
+    else m.hero = { kind: 'text', label: '', text: 'ほかの人を待っています', small: true };
+    return m;
+  }
+
+  // ---- できごと（スタート・確保・集合完了など）を大きく出す ----
+  function snapshot(now) {
+    const gi = gameInfo(now), ga = gatherInfo(now);
+    if (gi) return { key: `tag-${gi.g.startAt}`, phase: gi.phase, caught: gi.caughtList.slice(), remain: gi.ended ? null : gi.end - now, result: gi.ended ? gi.winner : null, gi };
+    if (ga) return { key: `gather-${ga.q.startAt}`, phase: ga.phase, caught: [], remain: !ga.ended && ga.q.duration > 0 ? ga.end - now : null, result: ga.result, ga };
+    return { key: null };
+  }
+  function pushEvent(text, color, sub) {
+    needGlyphs(text + (sub || ''));
+    CAM.events.push({ text, color, sub, at: 0 });
+  }
+  function detectEvents(now) {
+    const cur = snapshot(now), prev = CAM.prev;
+    CAM.prev = cur;
+    if (!prev || prev.key !== cur.key || !cur.key) return;
+    if (prev.phase === 'countdown' && cur.phase !== 'countdown' && !cur.result) pushEvent('スタート！', TV.yellow);
+    if (prev.phase === 'headstart' && cur.phase === 'chase') pushEvent('鬼が動き出した！', TV.red);
+    for (const pid of cur.caught) if (!prev.caught.includes(pid)) pushEvent(`${nameOf(pid)} 確保！`, TV.red);
+    if (prev.remain != null && cur.remain != null && prev.remain > 60000 && cur.remain <= 60000) pushEvent('残り1分！', TV.red);
+    if (!prev.result && cur.result) {
+      if (cur.gi) pushEvent(cur.result === 'oni' ? '鬼の勝ち！' : '逃げ切り成功！', cur.result === 'oni' ? TV.red : TV.yellow);
+      else if (cur.result === 'gathered') pushEvent('集合完了！', TV.yellow, `タイム ${mmss(cur.ga.endAt - cur.ga.q.startAt)}`);
+      else if (cur.result === 'timeup') pushEvent('時間切れ', TV.red);
+      else pushEvent('終了', TV.cobalt);
+    }
+  }
+
+  // ---- 描画の道具 ----
+  function telopText(text, x, y, o) {
+    cx.font = o.font;
+    cx.textAlign = o.align || 'left';
+    cx.textBaseline = o.baseline || 'alphabetic';
+    cx.lineJoin = 'round';
+    cx.miterLimit = 2;
+    if (o.sw) { cx.lineWidth = o.sw; cx.strokeStyle = o.stroke || TV.ink; cx.strokeText(text, x, y); }
+    if (o.iw) { cx.lineWidth = o.iw; cx.strokeStyle = o.inner; cx.strokeText(text, x, y); }
+    cx.fillStyle = o.fill || TV.white;
+    cx.fillText(text, x, y);
+  }
+  function textW(text, font) { cx.font = font; return cx.measureText(text).width; }
+  // 斜めの帯（番組テロップの台）
+  function slabPath(x, y, w, h, skew) {
+    cx.beginPath();
+    cx.moveTo(x + skew, y); cx.lineTo(x + w + skew, y); cx.lineTo(x + w, y + h); cx.lineTo(x, y + h);
+    cx.closePath();
+  }
+  function slab(x, y, w, h, skew, fill, alpha = 1) {
+    cx.save();
+    cx.globalAlpha *= alpha;
+    slabPath(x, y, w, h, skew);
+    cx.fillStyle = fill;
+    cx.fill();
+    cx.restore();
+  }
+  // 数字の幅をそろえて描く（タイマーが揺れないように）
+  function digits(text, x, y, size, o) {
+    const font = `${size}px ${F_DISPLAY}`;
+    cx.font = font;
+    const cw = cx.measureText('0').width;
+    const ws = [...text].map((ch) => (/\d/.test(ch) ? cw : cx.measureText(ch).width));
+    const total = ws.reduce((a, b) => a + b, 0);
+    let px = o.align === 'right' ? x - total : o.align === 'center' ? x - total / 2 : x;
+    [...text].forEach((ch, i) => { telopText(ch, px + ws[i] / 2, y, { ...o, font, align: 'center' }); px += ws[i]; });
+    return total;
+  }
+  function arrowDisc(x, y, r, deg, u) {
+    cx.save();
+    cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2);
+    cx.fillStyle = TV.white; cx.fill();
+    cx.lineWidth = 6 * u; cx.strokeStyle = TV.ink; cx.stroke();
+    cx.translate(x, y); cx.rotate((deg * Math.PI) / 180);
+    const k = (r * 1.7) / 100;
+    cx.beginPath();
+    cx.moveTo(0, -41 * k); cx.lineTo(21 * k, 18 * k); cx.lineTo(0, 6 * k); cx.lineTo(-21 * k, 18 * k); cx.closePath();
+    cx.fillStyle = TV.cobalt; cx.fill();
+    cx.restore();
+  }
+  const fitSize = (text, font, size, maxW) => { const w = textW(text, `${size}px ${font}`); return w > maxW ? Math.floor((size * maxW) / w) : size; };
+  const easeOutBack = (t) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+
+  function drawTelop(m, now) {
+    const W = CAM.W, H = CAM.H, land = W > H;
+    const u = Math.min(W, H) / 720;
+    const mx = (land ? 36 : 26) * u, my = 28 * u;
+
+    // 読みやすさのための上下の影
+    let g = cx.createLinearGradient(0, 0, 0, H * 0.18);
+    g.addColorStop(0, 'rgba(0,0,0,.42)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    cx.fillStyle = g; cx.fillRect(0, 0, W, H * 0.18);
+    g = cx.createLinearGradient(0, H * (land ? 0.5 : 0.58), 0, H);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.6)');
+    cx.fillStyle = g; cx.fillRect(0, H * 0.5, W, H * 0.5);
+
+    // 危険：赤い枠が脈打つ
+    if (m.danger) {
+      const a = 0.65 + 0.35 * Math.sin(now / 140);
+      cx.save(); cx.globalAlpha = a; cx.lineWidth = 16 * u; cx.strokeStyle = TV.red;
+      cx.strokeRect(8 * u, 8 * u, W - 16 * u, H - 16 * u); cx.restore();
+    }
+
+    // 左上：時刻（テレビの時計）と番組名
+    const clockFont = `${30 * u}px ${F_DISPLAY}`;
+    const cw = textW(m.clock, clockFont) + 26 * u;
+    cx.fillStyle = TV.white; cx.fillRect(mx, my, cw, 46 * u);
+    telopText(m.clock, mx + 13 * u, my + 35 * u, { font: clockFont, fill: TV.ink });
+    const brandFont = `800 ${19 * u}px ${F_LABEL}`, showFont = `${27 * u}px ${F_DISPLAY}`;
+    const bw = textW('kyori', brandFont), sw = textW(m.show, showFont);
+    const ty = my + 54 * u;
+    slab(mx, ty, bw + sw + 52 * u, 48 * u, 14 * u, TV.cobalt);
+    telopText('kyori', mx + 18 * u, ty + 32 * u, { font: brandFont, fill: TV.yellow });
+    telopText(m.show, mx + 30 * u + bw, ty + 35 * u, { font: showFont, fill: TV.white });
+
+    // 右上：タイマーと役割
+    let ry = my;
+    if (m.timer) {
+      const label = m.timer.label;
+      const text = m.timer.text != null ? m.timer.text : mmss(m.timer.ms);
+      const size = 58 * u;
+      cx.font = `${size}px ${F_DISPLAY}`;
+      const tw = Math.max(cx.measureText('0').width * text.replace(/\D/g, '').length + cx.measureText(':').width * (text.includes(':') ? 1 : 0), 90 * u);
+      const boxW = tw + 40 * u, boxH = 104 * u, bx = W - mx - boxW;
+      cx.save(); cx.globalAlpha = 0.78; cx.fillStyle = TV.ink; cx.fillRect(bx, ry, boxW, boxH); cx.restore();
+      cx.fillStyle = m.timer.low ? TV.red : TV.yellow; cx.fillRect(bx, ry, 6 * u, boxH);
+      telopText(label, bx + 20 * u, ry + 28 * u, { font: `800 ${19 * u}px ${F_LABEL}`, fill: m.timer.low ? TV.red : TV.yellow });
+      digits(text, W - mx - 18 * u, ry + 88 * u, size, { align: 'right', fill: m.timer.low ? TV.red : TV.white });
+      ry += boxH + 10 * u;
+    }
+    if (m.role) {
+      const f = `${32 * u}px ${F_DISPLAY}`;
+      const rw = Math.max(textW(m.role.text, f) + 40 * u, 96 * u);
+      slab(W - mx - rw, ry, rw, 54 * u, -12 * u, m.role.bg);
+      telopText(m.role.text, W - mx - rw / 2 - 6 * u, ry + 40 * u, { font: f, fill: m.role.fg, align: 'center' });
+      ry += 64 * u;
+    }
+    if (m.sub) {
+      const f = `800 ${20 * u}px ${F_LABEL}`;
+      telopText(m.sub, W - mx, ry + 22 * u, { font: f, fill: TV.white, align: 'right', sw: 6 * u });
+    }
+
+    // 注意（確保できる！／鬼が近い！）：上の中央で点滅
+    if (m.note) {
+      const f = `${34 * u}px ${F_DISPLAY}`;
+      const nw = textW(m.note.text, f) + 48 * u;
+      const ny = land ? my + 120 * u : H * 0.2;
+      slab(W / 2 - nw / 2, ny, nw, 60 * u, 16 * u, m.note.bg);
+      cx.save();
+      cx.globalAlpha = 0.5 + 0.5 * Math.sin(now / 110);
+      slabPath(W / 2 - nw / 2 - 5 * u, ny - 5 * u, nw + 10 * u, 70 * u, 18 * u);
+      cx.lineWidth = 5 * u; cx.strokeStyle = TV.white; cx.stroke();
+      cx.restore();
+      telopText(m.note.text, W / 2 + 8 * u, ny + 44 * u, { font: f, fill: m.note.fg, align: 'center' });
+    }
+
+    // 下：いちばん大事な数字（下三分の一）
+    const bottom = H - (land ? 34 : 44) * u;
+    let y = bottom;
+    const maxW = (land ? W * 0.62 : W) - mx * 2;
+    // 小さいチップ（ほかの人）
+    if (m.rows.length) {
+      const chipH = 50 * u, gap = 10 * u;
+      const nameF = `800 ${22 * u}px ${F_LABEL}`, valF = `${26 * u}px ${F_DISPLAY}`;
+      const chips = m.rows.map((r) => {
+        const val = r.value != null ? fmt(r.value).join('') : r.dir ? r.dir.text : '…';
+        const w = 22 * u + textW(r.name, nameF) + 12 * u + (r.dir && r.value == null ? 34 * u : 0) + textW(val, valF) + 22 * u;
+        return { r, val, w };
+      });
+      // 横に並べ、はみ出したら上の段へ
+      const lines = [[]]; let lw = 0;
+      for (const c of chips) {
+        if (lw + c.w > W - mx * 2 && lines[lines.length - 1].length) { lines.push([]); lw = 0; }
+        lines[lines.length - 1].push(c); lw += c.w + gap;
+      }
+      for (let li = lines.length - 1; li >= 0; li--) {
+        let x = mx;
+        y -= chipH;
+        for (const c of lines[li]) {
+          cx.save(); cx.globalAlpha = 0.72; cx.fillStyle = TV.ink; cx.fillRect(x, y, c.w, chipH); cx.restore();
+          cx.fillStyle = TV.yellow; cx.fillRect(x, y, 5 * u, chipH);
+          let tx = x + 22 * u;
+          telopText(c.r.name, tx, y + 34 * u, { font: nameF, fill: TV.white });
+          tx += textW(c.r.name, nameF) + 12 * u;
+          if (c.r.dir && c.r.value == null) { arrowDisc(tx + 13 * u, y + chipH / 2, 14 * u, c.r.dir.rel, u * 0.5); tx += 34 * u; }
+          telopText(c.val, tx, y + 36 * u, { font: valF, fill: TV.yellow });
+          x += c.w + gap;
+        }
+        y -= gap;
+      }
+      y -= 14 * u;
+    }
+
+    const h = m.hero;
+    if (h) {
+      const big = (land ? 132 : 168) * u;
+      let label = h.label;
+      const labelF = `800 ${30 * u}px ${F_LABEL}`;
+      if (h.kind === 'dist' || h.kind === 'both') {
+        const [n, unit] = fmt(h.value);
+        const unitSize = 58 * u;
+        let size = big;
+        const discR = h.kind === 'both' ? 50 * u : 0;
+        const avail = maxW - textW(unit, `${unitSize}px ${F_DISPLAY}`) - 20 * u - (discR ? discR * 2 + 24 * u : 0);
+        size = fitSize(n, F_DISPLAY, size, avail);
+        const numFont = `${size}px ${F_DISPLAY}`;
+        telopText(n, mx - 4 * u, y - 4 * u, { font: numFont, sw: 22 * u, iw: 10 * u, inner: TV.cobalt, fill: TV.white });
+        const nw = textW(n, numFont) - 4 * u;
+        telopText(unit, mx + nw + 14 * u, y - 10 * u, { font: `${unitSize}px ${F_DISPLAY}`, fill: TV.yellow, sw: 12 * u });
+        if (discR) arrowDisc(mx + nw + 14 * u + textW(unit, `${unitSize}px ${F_DISPLAY}`) + 24 * u + discR, y - size * 0.36, discR, h.rel, u);
+        y -= size * 0.9;
+      } else if (h.kind === 'dir') {
+        const r = (land ? 62 : 74) * u;
+        arrowDisc(mx + r, y - r, r, h.rel, u);
+        const f = fitSize(h.text, F_DISPLAY, (land ? 76 : 88) * u, maxW - r * 2 - 28 * u);
+        telopText(h.text, mx + r * 2 + 26 * u, y - r + f * 0.36, { font: `${f}px ${F_DISPLAY}`, fill: TV.white, sw: 16 * u, iw: 7 * u, inner: TV.cobalt });
+        y -= r * 2 + 4 * u;
+      } else if (h.kind === 'time') {
+        const size = Math.min(big, fitSize('00:00', F_DISPLAY, big, maxW));
+        digits(mmss(h.ms), mx - 4 * u, y - 4 * u, size, { sw: 22 * u, iw: 10 * u, inner: TV.cobalt, fill: TV.white });
+        y -= size * 0.86;
+      } else {
+        const base = h.small ? 54 * u : (land ? 96 : 112) * u;
+        const f = fitSize(h.text, F_DISPLAY, base, maxW);
+        telopText(h.text, mx, y - 6 * u, { font: `${f}px ${F_DISPLAY}`, fill: TV.white, sw: (h.small ? 10 : 18) * u, iw: h.small ? 0 : 8 * u, inner: TV.cobalt });
+        y -= f * 1.0;
+      }
+      if (label) {
+        y -= 10 * u;
+        const lw = Math.min(textW(label, labelF), maxW - 40 * u) + 40 * u;
+        slab(mx, y - 52 * u, lw, 52 * u, 14 * u, TV.yellow);
+        telopText(label, mx + 20 * u, y - 15 * u, { font: labelF, fill: TV.ink });
+      }
+    }
+
+    // できごと：中央に大きく
+    const ev = CAM.events[0];
+    if (ev) {
+      if (!ev.at) ev.at = now;
+      const t = (now - ev.at) / 1000, dur = 2.6;
+      if (t > dur) CAM.events.shift();
+      else {
+        const inT = Math.min(1, t / 0.28), out = t > dur - 0.35 ? (dur - t) / 0.35 : 1;
+        const cyy = H * (land ? 0.45 : 0.43);
+        const bandH = ((land ? 150 : 176) + (ev.sub ? 64 : 0)) * u;
+        cx.save();
+        cx.globalAlpha = Math.max(0, out);
+        const slide = (1 - Math.min(1, t / 0.22)) * -W;
+        slab(slide - 40 * u, cyy - bandH / 2, W + 80 * u, bandH, 40 * u, ev.color, 0.94);
+        cx.fillStyle = TV.ink; cx.fillRect(slide, cyy - bandH / 2 - 8 * u, W, 8 * u); cx.fillRect(slide, cyy + bandH / 2, W, 8 * u);
+        const sc = 0.6 + 0.4 * easeOutBack(inT);
+        const f = fitSize(ev.text, F_DISPLAY, (land ? 104 : 120) * u, W - mx * 4);
+        cx.translate(W / 2, cyy + (ev.sub ? -28 * u : 0)); cx.scale(sc, sc);
+        const dark = ev.color === TV.yellow;
+        telopText(ev.text, 0, f * 0.36, { font: `${f}px ${F_DISPLAY}`, fill: TV.white, sw: 22 * u, stroke: TV.ink, iw: 9 * u, inner: dark ? TV.red : TV.cobalt, align: 'center' });
+        if (ev.sub) telopText(ev.sub, 0, f * 0.36 + 70 * u, { font: `${40 * u}px ${F_DISPLAY}`, fill: dark ? TV.ink : TV.white, align: 'center' });
+        cx.restore();
+      }
+    }
+  }
+
+  // ---- カメラと録画 ----
+  function sizeCanvas() {
+    if (CAM.rec) return; // 録画中は大きさを変えない
+    const land = window.innerWidth > window.innerHeight;
+    const s = CAM.q, l = Math.round((s * 16) / 9 / 2) * 2;
+    CAM.W = land ? l : s; CAM.H = land ? s : l;
+    camCanvas.width = CAM.W; camCanvas.height = CAM.H;
+  }
+  function stopTracks(stream) { if (stream) stream.getTracks().forEach((t) => { try { t.stop(); } catch (_) {} }); }
+  function camError(msg) { const e = $('#camErr'); e.textContent = msg; e.hidden = false; }
+
+  async function startVideo() {
+    stopTracks(CAM.video); CAM.video = null;
+    const v = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: CAM.facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+    });
+    CAM.video = v;
+    camVideo.srcObject = v;
+    try { await camVideo.play(); } catch (_) {}
+  }
+  async function ensureAudio() {
+    if (CAM.audio && CAM.audio.getAudioTracks().some((t) => t.readyState === 'live')) return;
+    try { CAM.audio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); }
+    catch (_) { CAM.audio = null; toast('マイクが使えないため、音なしで録画します'); }
+  }
+
+  async function openCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('このブラウザではカメラを使えません'); return; }
+    $('#room').hidden = true; $('#cam').hidden = false; $('#camErr').hidden = true;
+    document.body.classList.add('camming');
+    CAM.open = true; CAM.prev = null; CAM.events = []; CAM.model = null;
+    sizeCanvas();
+    needGlyphs(GLYPH_BASE + S.name + [...S.peers.values()].map((p) => p.name).join(''));
+    requestWake();
+    cancelAnimationFrame(CAM.raf);
+    loop();
+    try { await startVideo(); }
+    catch (e) {
+      camError(e && e.name === 'NotAllowedError'
+        ? 'カメラが許可されていません。iPhone は 設定 → アプリ → Safari → カメラ を「許可」にして、もう一度「撮影」を押してください。'
+        : 'カメラを起動できませんでした。ほかのアプリがカメラを使っていないか確認して、もう一度お試しください。');
+    }
+    ensureAudio();
+  }
+  function closeCamera() {
+    if (CAM.rec) { stopRecording(true); return; } // 録画中なら止めて確認画面へ
+    CAM.open = false;
+    cancelAnimationFrame(CAM.raf);
+    stopTracks(CAM.video); CAM.video = null;
+    stopTracks(CAM.audio); CAM.audio = null;
+    camVideo.srcObject = null;
+    $('#cam').hidden = true;
+    document.body.classList.remove('camming');
+    if (S.room) { $('#room').hidden = false; render(); }
+    else $('#entry').hidden = false;
+  }
+
+  function loop() {
+    if (!CAM.open) return;
+    CAM.raf = requestAnimationFrame(loop);
+    const now = Date.now();
+    if (now - CAM.modelAt > 250) {
+      CAM.modelAt = now;
+      CAM.model = S.room ? overlayModel(now) : null;
+      if (S.room) detectEvents(now);
+      if (CAM.model) needGlyphs([CAM.model.show, CAM.model.hero?.label, CAM.model.hero?.text, CAM.model.note?.text, CAM.model.sub, ...CAM.model.rows.map((r) => r.name)].filter(Boolean).join(''));
+    }
+    const W = CAM.W, H = CAM.H;
+    cx.fillStyle = '#000'; cx.fillRect(0, 0, W, H);
+    if (camVideo.readyState >= 2 && camVideo.videoWidth) {
+      const vw = camVideo.videoWidth, vh = camVideo.videoHeight, s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s;
+      cx.save();
+      if (CAM.facing === 'user') { cx.translate(W, 0); cx.scale(-1, 1); } // 自撮りは鏡のように
+      cx.drawImage(camVideo, (W - dw) / 2, (H - dh) / 2, dw, dh);
+      cx.restore();
+    }
+    if (CAM.telop && CAM.model) drawTelop(CAM.model, now);
+    if (CAM.rec) {
+      $('#camRecTime').textContent = mmss(now - CAM.recStart);
+      $('#camRecSize').textContent = `${Math.round(CAM.bytes / 1e6)}MB`;
+      if (CAM.bytes > 700e6 || now - CAM.recStart > 30 * 60 * 1000) { toast('長くなったので録画を止めました'); stopRecording(true); }
+    }
+  }
+
+  function pickMime() {
+    if (typeof MediaRecorder === 'undefined') return null;
+    const list = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
+    for (const m of list) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (_) {} }
+    return '';
+  }
+  async function startRecording() {
+    const mime = pickMime();
+    if (mime === null || !camCanvas.captureStream) { toast('このブラウザでは録画できません'); return; }
+    await ensureAudio();
+    const stream = camCanvas.captureStream(30);
+    if (CAM.audio) CAM.audio.getAudioTracks().forEach((t) => stream.addTrack(t));
+    let rec;
+    try {
+      rec = new MediaRecorder(stream, { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: CAM.q >= 1080 ? 8e6 : 4.5e6, audioBitsPerSecond: 128000 });
+    } catch (_) { toast('録画を始められませんでした'); return; }
+    CAM.rec = rec; CAM.chunks = []; CAM.bytes = 0; CAM.recStart = Date.now();
+    CAM.mime = (rec.mimeType || mime || 'video/webm').split(';')[0];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) { CAM.chunks.push(e.data); CAM.bytes += e.data.size; } };
+    rec.onstop = finishRecording;
+    rec.start(1000);
+    $('#camShutter').classList.add('on'); $('#camShutter').setAttribute('aria-label', '録画を止める');
+    $('#camRecTag').hidden = false; $('#camHint').hidden = true;
+    $('#camQuality').disabled = true;
+  }
+  function stopRecording() {
+    const rec = CAM.rec;
+    if (!rec) return;
+    try { if (rec.state !== 'inactive') rec.stop(); else finishRecording(); } catch (_) { finishRecording(); }
+  }
+  function finishRecording() {
+    if (!CAM.rec) return;
+    CAM.rec = null;
+    $('#camShutter').classList.remove('on'); $('#camShutter').setAttribute('aria-label', '録画を始める');
+    $('#camRecTag').hidden = true; $('#camHint').hidden = false;
+    $('#camQuality').disabled = false;
+    const dur = Date.now() - CAM.recStart;
+    if (!CAM.chunks.length) { toast('録画できませんでした'); return; }
+    CAM.blob = new Blob(CAM.chunks, { type: CAM.mime });
+    CAM.chunks = [];
+    if (CAM.url) URL.revokeObjectURL(CAM.url);
+    CAM.url = URL.createObjectURL(CAM.blob);
+    // 確認画面へ（カメラは止める）
+    CAM.open = false;
+    cancelAnimationFrame(CAM.raf);
+    stopTracks(CAM.video); CAM.video = null;
+    $('#cam').hidden = true;
+    const pv = $('#camPlayback');
+    pv.src = CAM.url;
+    $('#camInfo').textContent = `${Math.floor(dur / 60000)}分${Math.round((dur % 60000) / 1000)}秒の動画（${Math.max(1, Math.round(CAM.blob.size / 1e6))}MB）`;
+    $('#camReview').hidden = false;
+  }
+  function fileName() {
+    const d = new Date(CAM.recStart || Date.now());
+    const p2 = (n) => String(n).padStart(2, '0');
+    return `kyori-${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.${CAM.mime.includes('mp4') ? 'mp4' : 'webm'}`;
+  }
+  async function saveVideo() {
+    if (!CAM.blob) return;
+    const file = new File([CAM.blob], fileName(), { type: CAM.mime });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'kyori' }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = CAM.url; a.download = file.name;
+    document.body.append(a); a.click(); a.remove();
+  }
+  function leaveReview(toCamera) {
+    const pv = $('#camPlayback');
+    pv.pause(); pv.removeAttribute('src'); pv.load();
+    $('#camReview').hidden = true;
+    if (toCamera) { openCamera(); return; }
+    stopTracks(CAM.audio); CAM.audio = null;
+    document.body.classList.remove('camming');
+    if (S.room) { $('#room').hidden = false; render(); } else $('#entry').hidden = false;
+  }
+
+  $('#camOpen').addEventListener('click', openCamera);
+  $('#camClose').addEventListener('click', closeCamera);
+  $('#camShutter').addEventListener('click', () => (CAM.rec ? stopRecording() : startRecording()));
+  $('#camFlip').addEventListener('click', async () => {
+    CAM.facing = CAM.facing === 'environment' ? 'user' : 'environment';
+    try { await startVideo(); $('#camErr').hidden = true; } catch (_) { toast('カメラを切り替えられませんでした'); }
+  });
+  $('#camTelop').addEventListener('click', (e) => { CAM.telop = !CAM.telop; e.currentTarget.setAttribute('aria-pressed', String(CAM.telop)); });
+  $('#camQuality').addEventListener('click', (e) => {
+    if (CAM.rec) return;
+    CAM.q = CAM.q === 720 ? 1080 : 720;
+    e.currentTarget.textContent = `${CAM.q}p`;
+    sizeCanvas();
+    toast(CAM.q === 1080 ? '1080p：きれいですが、スマホによってはカクつきます' : '720p：軽くて安定します');
+  });
+  $('#camSave').addEventListener('click', saveVideo);
+  $('#camRetake').addEventListener('click', () => leaveReview(true));
+  $('#camBack').addEventListener('click', () => leaveReview(false));
+  window.addEventListener('resize', () => { if (CAM.open) sizeCanvas(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!CAM.open) return;
+    if (document.visibilityState === 'hidden') { if (CAM.rec) stopRecording(); return; } // 裏に回ったら録画を確定
+    if (!CAM.video || CAM.video.getVideoTracks().every((t) => t.readyState === 'ended')) startVideo().catch(() => {});
+  });
 
   // ================= 招待・退出・画面維持 =================
   async function share() {
