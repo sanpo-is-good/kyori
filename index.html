@@ -11,6 +11,7 @@
 <title>kyori — 距離だけを共有する</title>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <style>
   :root {
     --bg: #0d0d0f;
@@ -169,6 +170,43 @@
   .result h3 { font-size: 38px; margin: 8px 0 6px; }
   .result p { color: var(--dim); margin: 0; font-size: 14px; }
 
+  /* ---------- ゲームマスター ---------- */
+  .gmline { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--dim); line-height: 1.5; margin: 0 0 16px; }
+  .gmline.watching { color: var(--warn); }
+  .gmline.me { color: var(--accent); }
+  #map, #rpMap { height: 62vh; min-height: 320px; border-radius: 14px; border: 1px solid var(--line); overflow: hidden; background: #111114; }
+  #rpMap { height: 56vh; }
+
+  /* ---------- 振り返り ---------- */
+  .rp-controls { display: flex; align-items: center; gap: 10px; margin: 14px 0 10px; }
+  .rp-controls input[type=range] { flex: 1; accent-color: var(--accent); }
+  .rp-time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--dim); white-space: nowrap; }
+  #rpPlay { min-width: 72px; }
+  .reclist li { cursor: default; }
+  .reclist .who small { display: block; color: var(--dim); font-size: 12px; margin-top: 3px; white-space: normal; }
+  .reclist .acts { display: flex; gap: 6px; flex: none; }
+  .events li { cursor: pointer; }
+  .events li:active { background: var(--panel); }
+  .catchmark { color: var(--bad); font-size: 18px; font-weight: 800; line-height: 1; text-shadow: 0 0 4px #000; transform: translate(-50%, -50%); position: absolute; }
+  .filebtn { position: relative; overflow: hidden; }
+  .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .maptools { display: flex; gap: 8px; justify-content: flex-end; margin: 10px 0 0; flex-wrap: wrap; }
+  .tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.92) saturate(.35); }
+  .leaflet-container { font-family: var(--sans); background: #111114; }
+  .leaflet-control-attribution { background: rgba(13,13,15,.75) !important; color: var(--dim) !important; font-size: 10px; }
+  .leaflet-control-attribution a { color: var(--text) !important; }
+  .leaflet-bar a, .leaflet-control-layers { background: #1c1c21 !important; color: var(--text) !important; border-color: var(--line) !important; }
+  .leaflet-control-layers-expanded { color: var(--text); padding: 8px 10px; }
+  .pin-wrap { background: none; border: 0; }
+  .pin { position: relative; }
+  .pin-dot { position: absolute; left: -7px; top: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--text); border: 2px solid var(--bg); box-shadow: 0 0 0 3px rgba(242,241,237,.25); }
+  .pin-name { position: absolute; left: 12px; top: -11px; white-space: nowrap; font-size: 12px; font-weight: 700; line-height: 1; color: var(--text); background: rgba(13,13,15,.85); padding: 5px 8px; border-radius: 999px; }
+  .pin.oni .pin-dot { left: -10px; top: -10px; width: 20px; height: 20px; background: var(--bad); box-shadow: 0 0 0 5px rgba(255,107,94,.3); }
+  .pin.oni .pin-name { color: var(--bad); left: 14px; }
+  .pin.caught .pin-dot { background: var(--faint); box-shadow: none; }
+  .pin.caught .pin-name { color: var(--dim); text-decoration: line-through; }
+  .pin.off { opacity: .45; }
+
   .foot { color: var(--faint); font-size: 11.5px; line-height: 1.7; margin-top: 34px; }
 
   .toast {
@@ -193,9 +231,16 @@
 
   <button class="btn" id="join">参加する</button>
   <button class="btn ghost" id="create">新しいルームを作る</button>
+  <button class="btn ghost" id="joinGM">ゲームマスターとして参加</button>
   <p class="err" id="entryErr" role="alert"></p>
 
-  <p class="fine">ルームでは「距離だけ」「方角だけ」「鬼ごっこ」を切り替えられます。位置はルームごとの鍵で暗号化してスマホどうしでやり取りし、画面には選んだ情報だけを表示します。鍵は招待リンク（ルームコード）にしか含まれないため、中継サーバーや部外者には読めません。どこにも保存されず、退出すると送信をやめます。</p>
+  <p class="fine">ルームでは「距離だけ」「方角だけ」「鬼ごっこ」を切り替えられます。位置はルームごとの鍵で暗号化してスマホどうしでやり取りし、画面には選んだ情報だけを表示します。鍵は招待リンク（ルームコード）にしか含まれないため、中継サーバーや部外者には読めません。中継サーバーには保存されず、退出すると送信をやめます。<br>ゲームマスターは自分の位置を送らずに参加し、地図で全員の位置を見られます。ゲームマスターがいるときは、全員の画面にそのことが表示されます。<br>鬼ごっこ中の全員の動きは、参加者それぞれの端末にだけ記録され、終了後に振り返れます（中継サーバーには残りません。記録はいつでも削除できます）。</p>
+
+  <section id="recEntryWrap">
+    <h2>この端末の記録（鬼ごっこ）</h2>
+    <ul class="pairs reclist" id="recListEntry"></ul>
+    <p style="text-align:right;margin-top:12px"><label class="chip filebtn">記録ファイルを読み込む<input type="file" id="recImport" accept=".json,application/json"></label></p>
+  </section>
 </main>
 
 <!-- ルーム -->
@@ -209,6 +254,7 @@
   </div>
 
   <div class="status" id="status"><i class="dot wait" id="statusDot"></i><span id="statusText">準備しています…</span></div>
+  <div class="gmline" id="gmLine"><span id="gmText"></span><button class="chip" id="gmToggle">GMになる</button></div>
 
   <div class="modes"><div class="seg" id="modeSeg">
     <button data-mode="distance">距離だけ</button>
@@ -241,6 +287,11 @@
 
     <button class="btn" id="startGame">スタート</button>
     <p class="err" id="lobbyErr"></p>
+    <p class="hint" style="margin-top:14px">ゲーム中の全員の動きは各端末に記録され、終了後に「動きを振り返る」で見られます。</p>
+    <section id="recLobbyWrap" hidden>
+      <h2>この端末の記録</h2>
+      <ul class="pairs reclist" id="recListLobby"></ul>
+    </section>
   </section>
 
   <!-- 鬼ごっこ：プレイ中 -->
@@ -252,7 +303,18 @@
   <!-- 鬼ごっこ：結果 -->
   <section id="tagResult" hidden>
     <div class="result"><small>RESULT</small><h3 id="resultTitle"></h3><p id="resultSub"></p></div>
-    <button class="btn" id="toLobby">ロビーに戻る</button>
+    <button class="btn" id="rpOpenResult">動きを振り返る</button>
+    <button class="btn ghost" id="toLobby">ロビーに戻る</button>
+  </section>
+
+  <!-- ゲームマスター：地図 -->
+  <section id="gmView" hidden>
+    <div id="map"></div>
+    <div class="maptools">
+      <button class="chip" id="myPosBtn">自分の位置も表示</button>
+      <button class="chip primary" id="fitBtn">全員を表示</button>
+    </div>
+    <ul class="pairs" id="gmList" style="margin-top:14px"></ul>
   </section>
 
   <div class="compassbar" id="compassBar" hidden><span id="compassText"></span><button class="chip" id="compassBtn">コンパスをオン</button></div>
@@ -279,9 +341,35 @@
   <p class="foot">画面を開いている間だけ位置を送ります。スリープ中や別アプリ表示中は更新が止まります。距離・方角はGPSの誤差を含み、近いほど方角はぶれます。</p>
 </main>
 
+<!-- 振り返り -->
+<main id="replay" hidden>
+  <div class="bar">
+    <div class="roomid"><small>REPLAY</small><b id="rpTitle" style="letter-spacing:.02em;font-family:var(--sans)">振り返り</b></div>
+    <div class="actions"><button class="chip" id="rpClose">閉じる</button></div>
+  </div>
+  <p class="hint" id="rpSub"></p>
+  <div id="rpMap"></div>
+  <div class="rp-controls">
+    <button class="chip primary" id="rpPlay">再生</button>
+    <input type="range" id="rpSeek" min="0" max="600" step="0.1" value="0" aria-label="再生位置">
+    <span class="rp-time" id="rpTime">0:00 / 0:00</span>
+  </div>
+  <div class="seg" id="rpSpeed">
+    <button data-val="1">1倍</button><button data-val="4">4倍</button><button data-val="16">16倍</button><button data-val="60">60倍</button>
+  </div>
+  <h2>できごと（タップでその場面へ）</h2>
+  <ul class="pairs events" id="rpEvents"></ul>
+  <div class="maptools" style="margin-top:18px">
+    <button class="chip" id="rpExport">ファイルに保存</button>
+    <button class="chip" id="rpDelete">この記録を削除</button>
+  </div>
+  <p class="foot">記録はこの端末の中だけに保存されています。「ファイルに保存」したファイルを送れば、ほかの人もこの画面で見られます（全員の動きが含まれるので、渡す相手に気をつけてください）。</p>
+</main>
+
 <div class="toast" id="toast" role="status"></div>
 
 <script src="vendor/mqtt.min.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
 <script>
 (() => {
   'use strict';
@@ -367,7 +455,7 @@
 
   const S = {
     room: null, pid: null, name: '', topicId: null, key: null, base: null, myTopic: null, stateTopic: null,
-    clients: [], watchId: null, wake: null, creator: false,
+    clients: [], watchId: null, wake: null, creator: false, gm: false,
     last: null, lastSentAt: 0, lastSentPos: null, sendTimer: null, beat: null, tick: null,
     geoState: 'wait', geoMsg: '', myAcc: null,
     peers: new Map(), gone: new Map(), cards: new Map(), session: 0,
@@ -484,21 +572,27 @@
   $('#join').addEventListener('click', () => {
     const code = normCode($('#code').value);
     if (!CODE_RE.test(code)) { entryErr('ルームコード（8文字）を確認してください。'); $('#code').focus(); return; }
-    enter(code, false);
+    enter(code, false, false);
   });
-  $('#create').addEventListener('click', () => enter(randomStr(8), true));
+  $('#joinGM').addEventListener('click', () => {
+    const code = normCode($('#code').value);
+    if (!CODE_RE.test(code)) { entryErr('ゲームマスターとして参加するには、ルームコード（8文字）を入れてください。'); $('#code').focus(); return; }
+    enter(code, false, true);
+  });
+  $('#create').addEventListener('click', () => enter(randomStr(8), true, false));
   $('#code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#join').click(); });
 
-  async function enter(code, creator) {
+  async function enter(code, creator, asGM) {
     entryErr('');
     if (!window.isSecureContext || !crypto.subtle) { entryErr('https:// のページで開いてください。'); return; }
-    if (!('geolocation' in navigator)) { entryErr('このブラウザは位置情報に対応していません。'); return; }
+    if (!asGM && !('geolocation' in navigator)) { entryErr('このブラウザは位置情報に対応していません。'); return; }
     if (typeof mqtt === 'undefined') { entryErr('通信ライブラリを読み込めませんでした。再読み込みしてください。'); return; }
 
     S.name = $('#name').value.trim().slice(0, 20) || 'だれか';
     store.set('kyori.name', S.name);
     S.room = code;
     S.creator = creator;
+    S.gm = !!asGM;
     S.state = { ts: 0, by: null, mode: 'distance', game: defaultGame() };
     const mySession = ++S.session;
     history.replaceState(null, '', `${location.pathname}${location.search}#${code}`);
@@ -508,7 +602,7 @@
     $('#room').hidden = false;
     document.title = `kyori — ${prettyCode(code)}`;
 
-    startGeo(); // タップ直後に呼ぶ（iPhone の許可ダイアログのため）
+    if (!S.gm) startGeo(); // タップ直後に呼ぶ（iPhone の許可ダイアログのため）。GMは位置を使わない
     requestWake();
     listenCompass(); // Android などは許可なしで届く。iPhone はボタンで許可したあとに届く
     renderStatus();
@@ -526,7 +620,7 @@
     if (creator) S.state.ts = Date.now();
     connect();
 
-    S.beat = setInterval(() => { if (S.last) send(true); }, HEARTBEAT);
+    S.beat = setInterval(() => { if (S.gm || S.last) send(true); }, HEARTBEAT);
     S.tick = setInterval(render, 1000);
     render();
   }
@@ -548,7 +642,7 @@
         c.subscribe(`${S.base}/#`, { qos: 0 });
         if (S.creator && !c._seeded) { c._seeded = true; pushState(c); } // ルーム作成者が最初の設定を置く
         renderStatus();
-        if (S.last) send(true);
+        if (S.gm || S.last) send(true);
       });
       c.on('message', onMessage);
       ['close', 'offline', 'error', 'reconnect'].forEach((ev) => c.on(ev, renderStatus));
@@ -629,20 +723,30 @@
       render();
       return;
     }
-    if (m.t !== 'loc') return;
-    const lat = Number(m.lat), lng = Number(m.lng), acc = Number(m.acc);
-    if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return;
+    if (m.t !== 'loc' && m.t !== 'gm') return;
     if (now - m.ts > FORGET_AFTER) return;              // 古いデータ
     if ((S.gone.get(pid) || 0) >= m.ts) return;         // 退出済み
     const prev = S.peers.get(pid);
     if (prev && prev.ts >= m.ts) return;                // もう一方の中継から届いた重複
+    const name = String(m.name || '').slice(0, 20) || 'だれか';
+
+    if (m.t === 'gm') { // ゲームマスター：位置は含まれない
+      S.peers.set(pid, { kind: 'gm', name, ts: Math.min(m.ts, now) });
+      render();
+      return;
+    }
+    const lat = Number(m.lat), lng = Number(m.lng), acc = Number(m.acc);
+    if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return;
     S.peers.set(pid, {
-      name: String(m.name || '').slice(0, 20) || 'だれか',
+      kind: 'player', name,
       lat, lng, acc: Number.isFinite(acc) && acc >= 0 ? acc : null,
       ts: Math.min(m.ts, now),
     });
+    recPoint(pid, lat, lng, Math.min(m.ts, now));
     render();
   }
+  const playerEntries = () => [...S.peers.entries()].filter(([, p]) => p.kind === 'player');
+  const onlineGMs = (now) => [...S.peers.values()].filter((p) => p.kind === 'gm' && now - p.ts < OFFLINE_AFTER);
 
   // ================= 位置情報 =================
   function setGeo(state, msg) { S.geoState = state; S.geoMsg = msg; renderStatus(); }
@@ -661,6 +765,7 @@
     const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
     S.last = { lat, lng, acc };
     S.myAcc = acc;
+    if (!S.gm) recPoint(S.pid, lat, lng, Date.now());
     setGeo('ok', '');
     send(false);
     render();
@@ -678,9 +783,19 @@
   const movedM = (a, b) => (a && b ? haversine(a, b) : Infinity);
 
   function send(force) {
-    if (!S.last || !S.key) return;
+    if (!S.key) return;
     const now = Date.now();
     const gap = now - S.lastSentAt;
+    if (S.gm) { // ゲームマスターは「いること」だけを知らせる（位置は送らない）
+      if (!force && gap < HEARTBEAT) return;
+      S.lastSentAt = now;
+      const topic = S.myTopic;
+      seal({ v: 1, t: 'gm', pid: S.pid, name: S.name, ts: now }).then((payload) => {
+        for (const c of S.clients) if (c.connected) c.publish(topic, payload, { qos: 0, retain: true });
+      });
+      return;
+    }
+    if (!S.last) return;
     if (!force && movedM(S.lastSentPos, S.last) < 1 && gap < HEARTBEAT) return;
     if (gap < MIN_GAP) {
       if (!S.sendTimer) S.sendTimer = setTimeout(() => { S.sendTimer = null; send(true); }, MIN_GAP - gap);
@@ -715,9 +830,10 @@
   }
   const nameOf = (pid) => (pid === S.pid ? S.name : S.state.game.names[pid] || S.peers.get(pid)?.name || 'だれか');
 
+  // 鬼ごっこに参加できる人（ゲームマスターは含めない）
   function presentPlayers(now) {
-    const list = [{ pid: S.pid, name: S.name, me: true }];
-    for (const [pid, p] of S.peers) if (now - p.ts < OFFLINE_AFTER) list.push({ pid, name: p.name, me: false });
+    const list = S.gm ? [] : [{ pid: S.pid, name: S.name, me: true }];
+    for (const [pid, p] of playerEntries()) if (now - p.ts < OFFLINE_AFTER) list.push({ pid, name: p.name, me: false });
     return list;
   }
 
@@ -739,6 +855,7 @@
   });
   $('#randomOni').addEventListener('click', () => {
     const ps = presentPlayers(Date.now());
+    if (!ps.length) { toast('プレイヤーがいません'); return; }
     const a = new Uint32Array(1); crypto.getRandomValues(a);
     const pick = ps[a[0] % ps.length];
     if (updateState((s) => { s.game.oni = pick.pid; })) toast(`鬼は ${pick.name}！`);
@@ -777,13 +894,47 @@
     if (updateState((s) => { s.game.caught[pid] = Date.now(); })) toast(`${nameOf(pid)} を確保！`);
   }
 
+  // ---- ゲームマスターの切り替え ----
+  $('#gmToggle').addEventListener('click', () => {
+    if (!S.key) return;
+    if (S.gm) { // プレイヤーに戻る
+      S.gm = false;
+      S.lastSentAt = 0;
+      if (S.watchId == null) startGeo();
+      else if (S.last) send(true);
+      toast('プレイヤーに戻りました。位置の共有を再開します');
+    } else {
+      const gi = gameInfo(Date.now());
+      if (gi && !gi.ended && (gi.role === 'oni' || gi.role === 'runner')) { toast('ゲーム中は切り替えられません'); return; }
+      S.gm = true;
+      S.lastSentAt = 0;
+      send(true); // 中継サーバー上の自分の位置も「GM」の印で上書きされる
+      if (S.state.game.oni === S.pid) updateState((s) => { s.game.oni = null; });
+      toast('ゲームマスターになりました。あなたの位置は送られません');
+    }
+    S.lobbySig = '';
+    render();
+  });
+  $('#myPosBtn').addEventListener('click', () => { // GM の端末上だけで自分の位置を表示（送信はしない）
+    if (!('geolocation' in navigator)) { toast('このブラウザは位置情報に対応していません'); return; }
+    if (S.watchId == null) startGeo();
+    M.follow = true; M.fitKey = '';
+    render();
+  });
+  $('#fitBtn').addEventListener('click', () => { M.follow = true; M.fitKey = ''; render(); });
+
   // ================= 画面 =================
   function renderStatus() {
     const dot = $('#statusDot'), txt = $('#statusText');
-    if (S.geoState === 'bad') { dot.className = 'dot bad'; txt.textContent = S.geoMsg; return; }
     if (S.key && connectedCount() === 0) {
       dot.className = 'dot wait'; txt.textContent = '中継サーバーに接続しています…'; return;
     }
+    if (S.gm) {
+      dot.className = S.key ? 'dot ok' : 'dot wait';
+      txt.textContent = S.key ? 'ゲームマスターとして参加中（あなたの位置は送っていません）' : 'ルームを準備しています…';
+      return;
+    }
+    if (S.geoState === 'bad') { dot.className = 'dot bad'; txt.textContent = S.geoMsg; return; }
     if (!S.key) { dot.className = 'dot wait'; txt.textContent = S.geoState === 'ok' ? 'ルームを準備しています…' : S.geoMsg; return; }
     if (S.geoState === 'ok') {
       dot.className = 'dot ok';
@@ -877,7 +1028,7 @@
   }
 
   function peerView(now) {
-    return [...S.peers.entries()].map(([pid, p]) => ({
+    return playerEntries().map(([pid, p]) => ({
       pid, name: p.name,
       age: Math.max(0, Math.round((now - p.ts) / 1000)),
       online: now - p.ts < OFFLINE_AFTER,
@@ -901,6 +1052,7 @@
     const people = peerView(now);
     const mode = S.state.mode;
     const gi = gameInfo(now);
+    trackRecording(gi, now);
 
     $$('#modeSeg button').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
@@ -924,10 +1076,24 @@
       const g = S.state.game;
       const seeTxt = { dir: '方角', dist: '距離', both: '距離と方角' };
       hint = `鬼ごっこ：鬼には逃げる人の${seeTxt[g.seeOni]}、逃げる人には鬼の${seeTxt[g.seeRunner]}が見えます。`;
-      if (!gi) renderLobby(now);
+      if (!gi) { renderLobby(now); renderRecLists(false); }
       else items = renderGame(gi, people, now);
     }
     $('#modeHint').textContent = hint;
+
+    // ゲームマスター：カードの代わりに地図
+    if (S.gm) items = [];
+    renderGMLine(now);
+    const gmView = $('#gmView');
+    const showMap = S.gm;
+    const wasHidden = gmView.hidden;
+    gmView.hidden = !showMap;
+    if (showMap) {
+      ensureMap();
+      if (wasHidden && M.map) setTimeout(() => { M.map.invalidateSize(); M.fitKey = ''; render(); }, 0);
+      renderMap(now, gi);
+      renderGMList(now, gi);
+    }
 
     $('#tagLobby').hidden = !(mode === 'tag' && !gi);
     $('#tagHud').hidden = !(gi && !gi.ended);
@@ -949,7 +1115,7 @@
     // ほかの人どうし（距離モードのみ）
     const pairs = [];
     if (mode === 'distance') {
-      const ps = [...S.peers.entries()];
+      const ps = playerEntries();
       for (let i = 0; i < ps.length; i++) for (let j = i + 1; j < ps.length; j++) {
         pairs.push({ a: ps[i][1].name, b: ps[j][1].name, d: Math.round(haversine(ps[i][1], ps[j][1])) });
       }
@@ -966,6 +1132,176 @@
     }
     $('#pairsWrap').hidden = pairs.length === 0;
     renderStatus();
+  }
+
+  // ---- ゲームマスターがいることを全員に表示 ----
+  function renderGMLine(now) {
+    const line = $('#gmLine'), txt = $('#gmText'), btn = $('#gmToggle');
+    const others = onlineGMs(now).map((p) => p.name);
+    const gi = gameInfo(now);
+    const playing = gi && !gi.ended && (gi.role === 'oni' || gi.role === 'runner');
+    if (S.gm) {
+      line.className = 'gmline me';
+      txt.textContent = 'あなたはゲームマスター（地図で全員の位置が見えます）';
+      btn.textContent = 'プレイヤーに戻る';
+      btn.hidden = false;
+    } else if (others.length) {
+      line.className = 'gmline watching';
+      txt.textContent = `ゲームマスター（${others.join('、')}）が地図で全員の位置を見ています`;
+      btn.textContent = 'GMになる';
+      btn.hidden = !!playing;
+    } else {
+      line.className = 'gmline';
+      txt.textContent = 'ゲームマスターは自分の位置を送らず、地図で全員を見られます';
+      btn.textContent = 'GMになる';
+      btn.hidden = !!playing;
+    }
+  }
+
+  // ---- ゲームマスターの地図 ----
+  const M = { map: null, recs: new Map(), me: null, zone: null, follow: true, fitKey: '', programmatic: false };
+
+  function ensureMap() {
+    if (M.map || typeof L === 'undefined') return;
+    M.map = makeMap('map');
+    // 指で動かしたら自動で全員を表示するのをやめる
+    M.map.on('dragstart zoomstart', () => { if (!M.programmatic) M.follow = false; });
+  }
+
+  // 地図（地理院タイル〔暗く加工〕／航空写真／OSM を切り替え）
+  function makeMap(containerId) {
+    const map = L.map(containerId, { zoomControl: true, attributionControl: true });
+    const gsi = '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>';
+    const ref = { referrerPolicy: 'strict-origin-when-cross-origin' };
+    const dark = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+      ...ref, maxZoom: 20, maxNativeZoom: 18, className: 'tiles-dark', attribution: `${gsi}（色を加工して表示）`,
+    });
+    const photo = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg', {
+      ...ref, maxZoom: 20, maxNativeZoom: 18, attribution: gsi,
+    });
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      ...ref, maxZoom: 20, maxNativeZoom: 19, className: 'tiles-dark',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors（色を加工して表示）',
+    });
+    dark.addTo(map);
+    L.control.layers({ '地図': dark, '航空写真': photo, 'OSM（海外）': osm }, null, { position: 'topright' }).addTo(map);
+    map.attributionControl.setPrefix(false);
+    map.setView([35.6812, 139.7671], 13);
+    return map;
+  }
+  function makePin(name) {
+    const pin = el('div', 'pin');
+    const nameEl = el('span', 'pin-name', name);
+    pin.append(el('i', 'pin-dot'), nameEl);
+    return { pin, nameEl, icon: L.divIcon({ className: 'pin-wrap', html: pin, iconSize: [0, 0] }) };
+  }
+
+  function gameRoleOf(pid, gi) {
+    if (!gi) return 'player';
+    const g = gi.g;
+    if (pid === g.oni) return 'oni';
+    if (g.runners.includes(pid)) return g.caught[pid] && g.caught[pid] <= gi.end ? 'caught' : 'runner';
+    return 'other';
+  }
+
+  function renderMap(now, gi) {
+    if (!M.map) return;
+    const pts = [];
+    const seen = new Set();
+    for (const [pid, p] of playerEntries()) {
+      seen.add(pid);
+      let rec = M.recs.get(pid);
+      if (!rec) {
+        const pin = el('div', 'pin');
+        const nameEl = el('span', 'pin-name');
+        pin.append(el('i', 'pin-dot'), nameEl);
+        const marker = L.marker([p.lat, p.lng], {
+          icon: L.divIcon({ className: 'pin-wrap', html: pin, iconSize: [0, 0] }),
+          keyboard: false,
+        }).addTo(M.map);
+        const trail = L.polyline([], { color: '#f2f1ed', weight: 2, opacity: 0.35, interactive: false }).addTo(M.map);
+        rec = { pin, nameEl, marker, trail, pts: [], ts: 0, role: '' };
+        M.recs.set(pid, rec);
+      }
+      if (rec.ts !== p.ts) { // 新しい位置：マーカーを動かし、軌跡を伸ばす（GMの端末の中だけ）
+        rec.ts = p.ts;
+        rec.marker.setLatLng([p.lat, p.lng]);
+        const lastPt = rec.pts[rec.pts.length - 1];
+        if (!lastPt || haversine({ lat: lastPt[0], lng: lastPt[1] }, p) > 2) {
+          rec.pts.push([p.lat, p.lng]);
+          if (rec.pts.length > 400) rec.pts.shift();
+          rec.trail.setLatLngs(rec.pts);
+        }
+      }
+      const role = gameRoleOf(pid, gi);
+      const online = now - p.ts < OFFLINE_AFTER;
+      rec.pin.className = `pin ${role}${online ? '' : ' off'}`;
+      rec.nameEl.textContent = role === 'oni' ? `鬼 ${p.name}` : p.name;
+      if (rec.role !== role) {
+        rec.role = role;
+        rec.trail.setStyle({ color: role === 'oni' ? '#ff6b5e' : role === 'caught' ? '#55545c' : '#f2f1ed' });
+        rec.marker.setZIndexOffset(role === 'oni' ? 1000 : 0);
+      }
+      pts.push([p.lat, p.lng]);
+    }
+    for (const [pid, rec] of M.recs) {
+      if (!seen.has(pid)) { rec.marker.remove(); rec.trail.remove(); M.recs.delete(pid); }
+    }
+
+    // GM 自身（表示を選んだときだけ。送信はしない）
+    if (S.last) {
+      if (!M.me) M.me = L.circleMarker([S.last.lat, S.last.lng], { radius: 7, color: '#c8ff3d', weight: 3, fillColor: '#0d0d0f', fillOpacity: 1 }).addTo(M.map);
+      else M.me.setLatLng([S.last.lat, S.last.lng]);
+      pts.push([S.last.lat, S.last.lng]);
+    } else if (M.me) { M.me.remove(); M.me = null; }
+    $('#myPosBtn').hidden = S.watchId != null;
+
+    // 鬼の確保範囲
+    const oni = gi && !gi.ended && gi.g.oni ? S.peers.get(gi.g.oni) : null;
+    if (oni && oni.kind === 'player') {
+      if (!M.zone) M.zone = L.circle([oni.lat, oni.lng], { radius: gi.g.radius, color: '#ff6b5e', weight: 1, fillColor: '#ff6b5e', fillOpacity: 0.12, interactive: false }).addTo(M.map);
+      else { M.zone.setLatLng([oni.lat, oni.lng]); M.zone.setRadius(gi.g.radius); }
+    } else if (M.zone) { M.zone.remove(); M.zone = null; }
+
+    // 自動で全員が入るように表示
+    if (M.follow && pts.length) {
+      const lats = pts.map((q) => q[0]), lngs = pts.map((q) => q[1]);
+      const key = [Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs)].map((v) => v.toFixed(4)).join(',');
+      if (key !== M.fitKey) {
+        M.fitKey = key;
+        M.programmatic = true;
+        if (pts.length === 1) M.map.setView(pts[0], 17, { animate: false });
+        else M.map.fitBounds(pts, { padding: [48, 48], maxZoom: 18, animate: false });
+        M.programmatic = false;
+      }
+    }
+  }
+
+  function renderGMList(now, gi) {
+    const ul = $('#gmList');
+    ul.textContent = '';
+    const entries = playerEntries();
+    const g = gi ? gi.g : null;
+    const oni = g && g.oni ? S.peers.get(g.oni) : null;
+    const order = (pid) => { const r = gameRoleOf(pid, gi); return r === 'oni' ? 0 : r === 'runner' ? 1 : r === 'caught' ? 2 : 3; };
+    entries.sort(([a, pa], [b, pb]) => order(a) - order(b) || pa.name.localeCompare(pb.name, 'ja'));
+    for (const [pid, p] of entries) {
+      const role = gameRoleOf(pid, gi);
+      const li = el('li');
+      const who = el('span', 'who');
+      who.append(el('b', null, p.name));
+      const right = el('span', 'd');
+      const bits = [];
+      if (role === 'oni') { li.append(who, el('span', 'badge', '鬼')); ul.append(li); continue; }
+      if (role === 'caught') bits.push(`確保 ${mmss(g.caught[pid] - g.startAt)}`);
+      else if (role === 'runner' && oni && oni.kind === 'player') bits.push(`鬼から ${fmt(Math.round(haversine(oni, p))).join(' ')}`);
+      if (now - p.ts >= OFFLINE_AFTER) bits.push('接続切れ');
+      bits.push(ago(Math.max(0, Math.round((now - p.ts) / 1000))));
+      right.textContent = bits.join(' · ');
+      if (role === 'caught') right.classList.add('bad-t');
+      li.append(who, right);
+      ul.append(li);
+    }
   }
 
   function renderLobby(now) {
@@ -1004,8 +1340,8 @@
     const roleEl = $('#roleLabel');
     roleEl.className = 'role' + (gi.role === 'oni' ? ' oni' : '');
     roleEl.textContent = '';
-    const roleName = { oni: '鬼', runner: '逃げる人', caught: '確保された', spectator: '観戦中' }[gi.role];
-    roleEl.append(gi.role === 'spectator' || gi.role === 'caught' ? '' : 'あなたは', el('b', null, roleName));
+    const roleName = S.gm ? 'ゲームマスター' : { oni: '鬼', runner: '逃げる人', caught: '確保された', spectator: '観戦中' }[gi.role];
+    roleEl.append(S.gm ? 'あなたは' : gi.role === 'spectator' || gi.role === 'caught' ? '' : 'あなたは', el('b', null, roleName));
 
     const timer = $('#timer');
     const remain = gi.end - now;
@@ -1016,6 +1352,9 @@
     let msg = '', alert = false;
     const hsLeft = mmss(g.startAt + g.headStart * 1000 - now);
     if (gi.phase === 'countdown') msg = 'まもなくスタート！';
+    else if (S.gm) msg = gi.phase === 'headstart'
+      ? `逃げる時間（鬼の画面にはまだ何も出ていません）。あと ${hsLeft}。`
+      : `鬼ごっこ中。赤い円は鬼の確保範囲（${g.radius}m）です。`;
     else if (gi.phase === 'headstart') {
       msg = gi.role === 'oni' ? `逃げる時間です。あと ${hsLeft}、鬼の画面には何も出ません。` : `逃げて！ あと ${hsLeft} で鬼が動き出します。`;
       alert = gi.role !== 'oni';
@@ -1078,6 +1417,325 @@
     return [];
   }
 
+  // ================= 記録（鬼ごっこの振り返り） =================
+  // ゲーム中に届いた全員の位置を、この端末の中だけに記録する。見られるのは終了したゲームだけ。
+  const REC_KEY = 'kyori.records.v1';
+  const REC_MAX = 12;
+  const Rec = { cur: null, lastSave: 0, listSig: '' };
+
+  function loadRecords() {
+    try { const a = JSON.parse(localStorage.getItem(REC_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+  }
+  function saveRecords(list) {
+    for (;;) { // 容量がいっぱいなら古いものから消す
+      try { localStorage.setItem(REC_KEY, JSON.stringify(list)); return true; }
+      catch (_) { if (list.length <= 1) return false; list.shift(); }
+    }
+  }
+  function persistCur(force) {
+    const r = Rec.cur;
+    if (!r) return;
+    const now = Date.now();
+    if (!force && now - Rec.lastSave < 15000) return;
+    Rec.lastSave = now;
+    const list = loadRecords().filter((x) => x.id !== r.id);
+    list.push(r);
+    while (list.length > REC_MAX) list.shift();
+    if (!saveRecords(list) && force) toast('記録を保存できませんでした（端末の容量不足）');
+  }
+
+  function recPoint(pid, lat, lng, ts) {
+    const r = Rec.cur;
+    if (!r || r.done || (pid !== r.oni && !r.runners.includes(pid))) return;
+    const t = Math.max(0, Math.round((ts - r.startAt) / 100) / 10); // スタートからの秒（0.1秒単位）
+    if (t > r.duration + 5) return;
+    const tr = r.tracks[pid] || (r.tracks[pid] = []);
+    const la = Math.round(lat * 1e6), ln = Math.round(lng * 1e6);
+    const last = tr[tr.length - 1];
+    if (last && t < last[0]) return;
+    if (last && last[0] === t) { last[1] = la; last[2] = ln; return; }
+    if (last && last[1] === la && last[2] === ln && t - last[0] < 15) return; // 止まっている間は間引く
+    tr.push([t, la, ln]);
+  }
+
+  function trackRecording(gi, now) {
+    if (!gi) { // ゲームが終わる前にロビーに戻った（中止）
+      if (Rec.cur && !Rec.cur.done) {
+        const r = Rec.cur;
+        r.done = true; r.aborted = true;
+        r.endAt = r.startAt + Math.max(0, ...Object.values(r.tracks).map((tr) => (tr.length ? tr[tr.length - 1][0] : 0))) * 1000;
+        persistCur(true);
+      }
+      Rec.cur = null;
+      return;
+    }
+    const g = gi.g;
+    const id = `${(S.topicId || '').slice(0, 8)}-${g.startAt}`;
+    if (!Rec.cur || Rec.cur.id !== id) {
+      const saved = loadRecords().find((x) => x.id === id);
+      if (!saved && gi.ended) { Rec.cur = null; return; } // 終わったあとに来た人は記録なし
+      Rec.cur = saved || {
+        v: 1, id, startAt: g.startAt, duration: g.duration, headStart: g.headStart, radius: g.radius,
+        seeOni: g.seeOni, seeRunner: g.seeRunner, oni: g.oni, runners: g.runners.slice(), names: { ...g.names },
+        caught: {}, tracks: {}, done: false, aborted: false, endAt: null, winner: null,
+      };
+      Rec.lastSave = 0;
+      // スタート時点の位置を入れておく
+      if (!Rec.cur.done) {
+        if (S.last && !S.gm) recPoint(S.pid, S.last.lat, S.last.lng, now);
+        for (const [pid, p] of playerEntries()) recPoint(pid, p.lat, p.lng, p.ts);
+      }
+    }
+    const r = Rec.cur;
+    if (r.done) return;
+    r.caught = Object.fromEntries(Object.entries(g.caught).filter(([, v]) => v <= gi.end));
+    if (gi.ended) {
+      r.done = true;
+      r.winner = gi.winner;
+      r.endAt = gi.allCaught ? gi.lastCatch : gi.end;
+      persistCur(true);
+      Rec.listSig = '';
+    } else {
+      persistCur(false);
+    }
+  }
+  const finishedRecords = () => loadRecords().filter((r) => r.done).reverse(); // 新しい順
+
+  function recSummary(r) {
+    const d = new Date(r.startAt);
+    const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const result = r.aborted ? '中止' : r.winner === 'oni' ? `鬼の勝ち（${mmss(r.endAt - r.startAt)}）` : '逃げる人の勝ち';
+    return { title: `${when} · 鬼 ${r.names[r.oni] || 'だれか'}`, sub: `${1}対${r.runners.length} · ${result}` };
+  }
+
+  function renderRecLists(force) {
+    const recs = finishedRecords();
+    const sig = recs.map((r) => r.id).join(',');
+    if (!force && sig === Rec.listSig) return;
+    Rec.listSig = sig;
+    for (const [wrapId, listId] of [['#recEntryWrap', '#recListEntry'], ['#recLobbyWrap', '#recListLobby']]) {
+      const ul = $(listId);
+      ul.textContent = '';
+      for (const r of recs) {
+        const s = recSummary(r);
+        const li = el('li');
+        const who = el('span', 'who');
+        who.append(el('b', null, s.title), el('small', null, s.sub));
+        const acts = el('span', 'acts');
+        const view = el('button', 'chip primary', '見る');
+        view.dataset.rec = r.id;
+        acts.append(view);
+        li.append(who, acts);
+        ul.append(li);
+      }
+      $(wrapId).hidden = recs.length === 0 && wrapId === '#recLobbyWrap';
+      if (wrapId === '#recEntryWrap') $('#recListEntry').hidden = recs.length === 0;
+    }
+  }
+  ['#recListEntry', '#recListLobby'].forEach((id) => $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-rec]'); if (!b) return;
+    const r = loadRecords().find((x) => x.id === b.dataset.rec);
+    if (r) openReplay(r);
+  }));
+  $('#rpOpenResult').addEventListener('click', () => {
+    if (Rec.cur && Rec.cur.done) openReplay(Rec.cur);
+    else toast('この端末には記録がありません');
+  });
+
+  // 読み込んだファイルを検査して取り込む
+  function sanitizeRecord(x) {
+    if (!x || typeof x !== 'object' || x.v !== 1 || !Number.isFinite(x.startAt) || !Number.isFinite(x.duration)) return null;
+    const str = (s) => (typeof s === 'string' && s.length > 0 && s.length <= 40 ? s : null);
+    const tracks = {};
+    for (const [pid, tr] of Object.entries(x.tracks || {}).slice(0, 60)) {
+      if (!str(pid) || !Array.isArray(tr)) continue;
+      tracks[pid] = tr.filter((p) => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)
+        && Math.abs(p[1]) <= 90e6 && Math.abs(p[2]) <= 180e6).slice(0, 20000);
+    }
+    const names = {};
+    for (const [k, v] of Object.entries(x.names || {}).slice(0, 60)) if (str(k)) names[k] = String(v || '').slice(0, 20);
+    const caught = {};
+    for (const [k, v] of Object.entries(x.caught || {}).slice(0, 60)) if (str(k) && Number.isFinite(v)) caught[k] = v;
+    return {
+      v: 1, id: String(x.id || `import-${x.startAt}`).slice(0, 60), startAt: x.startAt,
+      duration: Math.min(7200, Math.max(10, x.duration)), headStart: Number.isFinite(x.headStart) ? x.headStart : 0,
+      radius: Number.isFinite(x.radius) ? Math.min(200, Math.max(5, x.radius)) : 20,
+      seeOni: SEE.includes(x.seeOni) ? x.seeOni : 'dir', seeRunner: SEE.includes(x.seeRunner) ? x.seeRunner : 'dist',
+      oni: str(x.oni), runners: Array.isArray(x.runners) ? x.runners.filter(str).slice(0, 60) : [],
+      names, caught, tracks, done: true, aborted: !!x.aborted,
+      endAt: Number.isFinite(x.endAt) ? x.endAt : x.startAt + x.duration * 1000,
+      winner: x.winner === 'oni' ? 'oni' : 'runners',
+    };
+  }
+  $('#recImport').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > 8 * 1024 * 1024) { toast('ファイルが大きすぎます'); return; }
+    let r = null;
+    try { const j = JSON.parse(await f.text()); r = sanitizeRecord(j && j.kyori === 'replay' ? j.record : j); } catch (_) {}
+    if (!r) { toast('kyori の記録ファイルではないようです'); return; }
+    const list = loadRecords().filter((x) => x.id !== r.id);
+    list.push(r);
+    while (list.length > REC_MAX) list.shift();
+    saveRecords(list);
+    renderRecLists(true);
+    openReplay(r);
+  });
+
+  // ---- 再生画面 ----
+  const RP = { rec: null, map: null, layers: [], players: [], zone: null, t: 0, dur: 0, playing: false, speed: 16, raf: 0, lastFrame: 0, back: null };
+
+  // 時刻 t（秒）の位置。最初の記録より前は null。間が60秒以上空いていたら補間しない
+  function posAt(tr, t) {
+    if (!tr || !tr.length || t < tr[0][0]) return null;
+    let lo = 0, hi = tr.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (tr[mid][0] <= t) lo = mid; else hi = mid - 1; }
+    const a = tr[lo], b = tr[lo + 1];
+    if (!b || b[0] - a[0] > 60) return { lat: a[1] / 1e6, lng: a[2] / 1e6, i: lo };
+    const k = (t - a[0]) / (b[0] - a[0] || 1);
+    return { lat: (a[1] + (b[1] - a[1]) * k) / 1e6, lng: (a[2] + (b[2] - a[2]) * k) / 1e6, i: lo };
+  }
+
+  function openReplay(rec) {
+    if (typeof L === 'undefined') { toast('地図を読み込めませんでした'); return; }
+    RP.back = !$('#room').hidden ? '#room' : '#entry';
+    $('#entry').hidden = true; $('#room').hidden = true; $('#replay').hidden = false;
+    window.scrollTo(0, 0);
+    if (!RP.map) RP.map = makeMap('rpMap');
+    RP.layers.forEach((l) => l.remove()); RP.layers = []; RP.players = [];
+    if (RP.zone) { RP.zone.remove(); RP.zone = null; }
+
+    RP.rec = rec;
+    const endT = Math.max(1, (rec.endAt - rec.startAt) / 1000);
+    RP.dur = endT;
+    const s = recSummary(rec);
+    $('#rpTitle').textContent = s.title;
+    $('#rpSub').textContent = `${s.sub} · 逃げる時間 ${rec.headStart}秒 · 確保 ${rec.radius}m`;
+
+    const all = [];
+    for (const pid of [rec.oni, ...rec.runners]) {
+      const tr = rec.tracks[pid] || [];
+      const isOni = pid === rec.oni;
+      const color = isOni ? '#ff6b5e' : '#f2f1ed';
+      const full = L.polyline(tr.map((p) => [p[1] / 1e6, p[2] / 1e6]), { color, weight: 1.5, opacity: 0.15, interactive: false }).addTo(RP.map);
+      const past = L.polyline([], { color, weight: 3, opacity: 0.8, interactive: false }).addTo(RP.map);
+      const pin = makePin(isOni ? `鬼 ${rec.names[pid] || 'だれか'}` : rec.names[pid] || 'だれか');
+      const marker = L.marker([0, 0], { icon: pin.icon, keyboard: false, zIndexOffset: isOni ? 1000 : 0 });
+      RP.layers.push(full, past, marker);
+      RP.players.push({ pid, tr, isOni, past, marker, pin, shown: false });
+      tr.forEach((p) => all.push([p[1] / 1e6, p[2] / 1e6]));
+      // 確保された場所に × を置く
+      if (rec.caught[pid] && tr.length) {
+        const ct = (rec.caught[pid] - rec.startAt) / 1000;
+        const at = posAt(tr, ct) || { lat: tr[tr.length - 1][1] / 1e6, lng: tr[tr.length - 1][2] / 1e6 };
+        const mk = L.marker([at.lat, at.lng], { icon: L.divIcon({ className: 'pin-wrap', html: '<span class="catchmark">×</span>', iconSize: [0, 0] }), interactive: false }).addTo(RP.map);
+        RP.layers.push(mk);
+      }
+    }
+
+    // できごと
+    const ev = [{ t: 0, text: 'スタート' }];
+    if (rec.headStart > 0 && rec.headStart < endT) ev.push({ t: rec.headStart, text: '鬼が動き出す' });
+    for (const pid of rec.runners) if (rec.caught[pid]) ev.push({ t: (rec.caught[pid] - rec.startAt) / 1000, text: `${rec.names[pid] || 'だれか'} を確保`, catch: true });
+    ev.push({ t: endT, text: rec.aborted ? '中止' : rec.winner === 'oni' ? '全員確保（鬼の勝ち）' : '時間切れ（逃げる人の勝ち）' });
+    ev.sort((a, b) => a.t - b.t);
+    const ul = $('#rpEvents');
+    ul.textContent = '';
+    for (const e of ev) {
+      const li = el('li');
+      li.append(el('span', 'who' + (e.catch ? ' bad-t' : ''), e.text), el('span', 'd', mmss(e.t * 1000)));
+      li.addEventListener('click', () => { seekReplay(Math.max(0, e.t - (e.catch ? 5 : 0))); });
+      ul.append(li);
+    }
+
+    const seek = $('#rpSeek');
+    seek.max = String(endT);
+    setSpeed(RP.speed);
+    pauseReplay();
+    setTimeout(() => {
+      RP.map.invalidateSize();
+      if (all.length > 1) RP.map.fitBounds(all, { padding: [36, 36], maxZoom: 18, animate: false });
+      else if (all.length === 1) RP.map.setView(all[0], 17, { animate: false });
+      seekReplay(0);
+    }, 0);
+  }
+
+  function drawReplay() {
+    const rec = RP.rec, t = RP.t;
+    let oniPos = null;
+    for (const p of RP.players) {
+      const pos = posAt(p.tr, t);
+      if (!pos) { if (p.shown) { p.marker.remove(); p.shown = false; } p.past.setLatLngs([]); continue; }
+      if (!p.shown) { p.marker.addTo(RP.map); p.shown = true; }
+      p.marker.setLatLng([pos.lat, pos.lng]);
+      const pts = p.tr.slice(0, pos.i + 1).map((q) => [q[1] / 1e6, q[2] / 1e6]);
+      pts.push([pos.lat, pos.lng]);
+      p.past.setLatLngs(pts);
+      const caught = !p.isOni && rec.caught[p.pid] && (rec.caught[p.pid] - rec.startAt) / 1000 <= t;
+      p.pin.pin.className = 'pin ' + (p.isOni ? 'oni' : caught ? 'caught' : 'runner');
+      if (p.isOni) oniPos = pos;
+    }
+    if (oniPos && t >= rec.headStart) {
+      if (!RP.zone) RP.zone = L.circle([oniPos.lat, oniPos.lng], { radius: rec.radius, color: '#ff6b5e', weight: 1, fillColor: '#ff6b5e', fillOpacity: 0.12, interactive: false }).addTo(RP.map);
+      else RP.zone.setLatLng([oniPos.lat, oniPos.lng]);
+    } else if (RP.zone) { RP.zone.remove(); RP.zone = null; }
+    $('#rpSeek').value = String(t);
+    $('#rpTime').textContent = `${mmss(t * 1000)} / ${mmss(RP.dur * 1000)}`;
+  }
+  function seekReplay(t) { RP.t = Math.min(RP.dur, Math.max(0, t)); drawReplay(); }
+  function frame(ts) {
+    if (!RP.playing) return;
+    const dt = RP.lastFrame ? (ts - RP.lastFrame) / 1000 : 0;
+    RP.lastFrame = ts;
+    RP.t = Math.min(RP.dur, RP.t + dt * RP.speed);
+    drawReplay();
+    if (RP.t >= RP.dur) { pauseReplay(); return; }
+    RP.raf = requestAnimationFrame(frame);
+  }
+  function playReplay() {
+    if (RP.t >= RP.dur) RP.t = 0;
+    RP.playing = true; RP.lastFrame = 0;
+    $('#rpPlay').textContent = '一時停止';
+    RP.raf = requestAnimationFrame(frame);
+  }
+  function pauseReplay() {
+    RP.playing = false;
+    cancelAnimationFrame(RP.raf);
+    $('#rpPlay').textContent = '再生';
+  }
+  function setSpeed(v) {
+    RP.speed = v;
+    $$('#rpSpeed button').forEach((b) => b.setAttribute('aria-pressed', String(Number(b.dataset.val) === v)));
+  }
+  $('#rpPlay').addEventListener('click', () => (RP.playing ? pauseReplay() : playReplay()));
+  $('#rpSeek').addEventListener('input', (e) => seekReplay(Number(e.target.value)));
+  $('#rpSpeed').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setSpeed(Number(b.dataset.val)); });
+  $('#rpClose').addEventListener('click', () => {
+    pauseReplay();
+    $('#replay').hidden = true;
+    $(RP.back && (RP.back === '#room' ? S.room : true) ? RP.back : '#entry').hidden = false;
+    renderRecLists(true);
+  });
+  $('#rpExport').addEventListener('click', () => {
+    const r = RP.rec; if (!r) return;
+    const blob = new Blob([JSON.stringify({ kyori: 'replay', record: r })], { type: 'application/json' });
+    const d = new Date(r.startAt);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `kyori-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  });
+  twoTap($('#rpDelete'), 'この記録を削除', 'もう一度タップで削除', () => {
+    const r = RP.rec; if (!r) return;
+    saveRecords(loadRecords().filter((x) => x.id !== r.id));
+    toast('記録を削除しました');
+    $('#rpClose').click();
+  });
+  renderRecLists(true);
+
   // ================= 招待・退出・画面維持 =================
   async function share() {
     const url = `${location.origin}${location.pathname}#${S.room}`;
@@ -1113,11 +1771,19 @@
       } catch (_) {}
     }
     clients.forEach((c) => { try { c.end(false); } catch (_) {} });
+    persistCur(true); Rec.cur = null;
 
     Object.assign(S, { clients: [], room: null, key: null, topicId: null, base: null, myTopic: null, stateTopic: null,
-      last: null, lastSentPos: null, lastSentAt: 0, geoState: 'wait', creator: false, lobbySig: '' });
+      last: null, lastSentPos: null, lastSentAt: 0, geoState: 'wait', creator: false, lobbySig: '', gm: false });
     S.peers.clear(); S.gone.clear();
     S.cards.forEach((c) => c.remove()); S.cards.clear();
+    // 地図の印と軌跡を片付ける
+    M.recs.forEach((r) => { r.marker.remove(); r.trail.remove(); }); M.recs.clear();
+    if (M.me) { M.me.remove(); M.me = null; }
+    if (M.zone) { M.zone.remove(); M.zone = null; }
+    M.follow = true; M.fitKey = '';
+    $('#gmView').hidden = true;
+    renderRecLists(true);
     history.replaceState(null, '', `${location.pathname}${location.search}`);
     $('#room').hidden = true; $('#entry').hidden = false;
     setupEntry();
