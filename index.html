@@ -165,6 +165,7 @@
   .timer.low { color: var(--bad); }
   .banner { border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: 14px; line-height: 1.6; margin: 0 0 18px; }
   .banner.alert { border-color: var(--bad); color: var(--bad); }
+  .banner.good { border-color: var(--accent); color: var(--accent); }
   .result { text-align: center; padding: 24px 0 8px; }
   .result small { color: var(--dim); font-size: 12px; letter-spacing: .12em; }
   .result h3 { font-size: 38px; margin: 8px 0 6px; }
@@ -188,6 +189,11 @@
   .events li { cursor: pointer; }
   .events li:active { background: var(--panel); }
   .catchmark { color: var(--bad); font-size: 18px; font-weight: 800; line-height: 1; text-shadow: 0 0 4px #000; transform: translate(-50%, -50%); position: absolute; }
+  .gcard { border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 0 0 22px; }
+  .gcard > b { font-size: 17px; }
+  .gcard .hint { margin: 6px 0 4px; }
+  .gcard details { margin: 6px 0 0; }
+  .gcard summary { font-size: 12px; color: var(--dim); cursor: pointer; padding: 6px 0; }
   .filebtn { position: relative; overflow: hidden; }
   .filebtn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .maptools { display: flex; gap: 8px; justify-content: flex-end; margin: 10px 0 0; flex-wrap: wrap; }
@@ -237,7 +243,7 @@
   <p class="fine">ルームでは「距離だけ」「方角だけ」「鬼ごっこ」を切り替えられます。位置はルームごとの鍵で暗号化してスマホどうしでやり取りし、画面には選んだ情報だけを表示します。鍵は招待リンク（ルームコード）にしか含まれないため、中継サーバーや部外者には読めません。中継サーバーには保存されず、退出すると送信をやめます。<br>ゲームマスターは自分の位置を送らずに参加し、地図で全員の位置を見られます。ゲームマスターがいるときは、全員の画面にそのことが表示されます。<br>鬼ごっこ中の全員の動きは、参加者それぞれの端末にだけ記録され、終了後に振り返れます（中継サーバーには残りません。記録はいつでも削除できます）。</p>
 
   <section id="recEntryWrap">
-    <h2>この端末の記録（鬼ごっこ）</h2>
+    <h2>この端末の記録</h2>
     <ul class="pairs reclist" id="recListEntry"></ul>
     <p style="text-align:right;margin-top:12px"><label class="chip filebtn">記録ファイルを読み込む<input type="file" id="recImport" accept=".json,application/json"></label></p>
   </section>
@@ -262,6 +268,25 @@
     <button data-mode="tag">鬼ごっこ</button>
   </div></div>
   <p class="modehint" id="modeHint"></p>
+
+  <!-- 距離だけ：集合ゲームの準備 -->
+  <section id="gatherLobby" hidden>
+    <div class="gcard">
+      <b>集合ゲーム</b>
+      <p class="hint">距離だけを頼りに全員で集まるゲーム。全員がおたがい <span id="gRadiusTxt">20</span>m 以内に集まったらクリア。スタートするとモードが固定され、終了まで全員の動きが記録されます。</p>
+      <details>
+        <summary id="gSettingSum">設定</summary>
+        <div class="setting"><span>集合とみなす距離（全員がおたがいこの距離以内）</span><div class="seg" data-gkey="radius">
+          <button data-val="10">10m</button><button data-val="20">20m</button><button data-val="30">30m</button><button data-val="50">50m</button>
+        </div></div>
+        <div class="setting"><span>制限時間</span><div class="seg" data-gkey="duration">
+          <button data-val="0">なし</button><button data-val="600">10分</button><button data-val="1200">20分</button><button data-val="1800">30分</button><button data-val="3600">60分</button>
+        </div></div>
+      </details>
+      <button class="btn" id="startGather">集合ゲームをスタート</button>
+      <p class="err" id="gatherErr"></p>
+    </div>
+  </section>
 
   <!-- 鬼ごっこ：ロビー -->
   <section id="tagLobby" hidden>
@@ -288,10 +313,6 @@
     <button class="btn" id="startGame">スタート</button>
     <p class="err" id="lobbyErr"></p>
     <p class="hint" style="margin-top:14px">ゲーム中の全員の動きは各端末に記録され、終了後に「動きを振り返る」で見られます。</p>
-    <section id="recLobbyWrap" hidden>
-      <h2>この端末の記録</h2>
-      <ul class="pairs reclist" id="recListLobby"></ul>
-    </section>
   </section>
 
   <!-- 鬼ごっこ：プレイ中 -->
@@ -330,12 +351,17 @@
   <section id="teamWrap" hidden>
     <h2>プレイヤー</h2>
     <ul class="pairs" id="team"></ul>
-    <p style="text-align:right;margin-top:14px"><button class="chip" id="abortGame">ゲームを中止</button></p>
+    <p style="text-align:right;margin-top:14px"><button class="chip" id="abortGame">ゲームを終了</button></p>
   </section>
 
   <section id="pairsWrap" hidden>
     <h2>ほかの人どうし</h2>
     <ul class="pairs" id="pairs"></ul>
+  </section>
+
+  <section id="recLobbyWrap" hidden>
+    <h2>この端末の記録</h2>
+    <ul class="pairs reclist" id="recListLobby"></ul>
   </section>
 
   <p class="foot">画面を開いている間だけ位置を送ります。スリープ中や別アプリ表示中は更新が止まります。距離・方角はGPSの誤差を含み、近いほど方角はぶれます。</p>
@@ -354,6 +380,7 @@
     <input type="range" id="rpSeek" min="0" max="600" step="0.1" value="0" aria-label="再生位置">
     <span class="rp-time" id="rpTime">0:00 / 0:00</span>
   </div>
+  <p class="hint" id="rpInfo" style="min-height:1.7em;margin:0 0 10px"></p>
   <div class="seg" id="rpSpeed">
     <button data-val="1">1倍</button><button data-val="4">4倍</button><button data-val="16">16倍</button><button data-val="60">60倍</button>
   </div>
@@ -452,6 +479,9 @@
     phase: 'lobby', oni: null, runners: [], names: {}, caught: {}, startAt: 0,
     duration: 600, headStart: 60, radius: 20, seeOni: 'dir', seeRunner: 'dist',
   });
+  // 距離だけモードの集合ゲーム（duration 0 は制限時間なし）
+  const GATHER_RESULTS = ['gathered', 'timeup', 'stopped'];
+  const defaultGather = () => ({ phase: 'lobby', players: [], names: {}, startAt: 0, duration: 0, radius: 20, endAt: 0, result: null });
 
   const S = {
     room: null, pid: null, name: '', topicId: null, key: null, base: null, myTopic: null, stateTopic: null,
@@ -459,7 +489,7 @@
     last: null, lastSentAt: 0, lastSentPos: null, sendTimer: null, beat: null, tick: null,
     geoState: 'wait', geoMsg: '', myAcc: null,
     peers: new Map(), gone: new Map(), cards: new Map(), session: 0,
-    state: { ts: 0, by: null, mode: 'distance', game: defaultGame() },
+    state: { ts: 0, by: null, mode: 'distance', game: defaultGame(), gather: defaultGather() },
     lobbySig: '',
   };
 
@@ -593,7 +623,7 @@
     S.room = code;
     S.creator = creator;
     S.gm = !!asGM;
-    S.state = { ts: 0, by: null, mode: 'distance', game: defaultGame() };
+    S.state = { ts: 0, by: null, mode: 'distance', game: defaultGame(), gather: defaultGather() };
     const mySession = ++S.session;
     history.replaceState(null, '', `${location.pathname}${location.search}#${code}`);
 
@@ -653,7 +683,7 @@
 
   async function pushState(only) {
     const st = S.state;
-    const payload = await seal({ v: 1, t: 'state', ts: st.ts, by: st.by, mode: st.mode, game: st.game });
+    const payload = await seal({ v: 1, t: 'state', ts: st.ts, by: st.by, mode: st.mode, game: st.game, gather: st.gather });
     for (const c of only ? [only] : S.clients) if (c.connected) c.publish(S.stateTopic, payload, { qos: 0, retain: true });
   }
 
@@ -694,6 +724,25 @@
     };
   }
 
+  function sanitizeGather(q) {
+    const d = defaultGather();
+    if (!q || typeof q !== 'object') return d;
+    const str = (x) => (typeof x === 'string' && x.length > 0 && x.length <= 40 ? x : null);
+    const num = (x, lo, hi, def) => (Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : def);
+    const names = {};
+    if (q.names && typeof q.names === 'object') for (const [k, v] of Object.entries(q.names).slice(0, 60)) if (str(k)) names[k] = String(v || '').slice(0, 20);
+    return {
+      phase: ['running', 'ended'].includes(q.phase) ? q.phase : 'lobby',
+      players: Array.isArray(q.players) ? q.players.filter(str).slice(0, 60) : [],
+      names,
+      startAt: num(q.startAt, 0, 1e15, 0),
+      duration: num(q.duration, 0, 7200, 0),
+      radius: num(q.radius, 5, 200, 20),
+      endAt: num(q.endAt, 0, 1e15, 0),
+      result: GATHER_RESULTS.includes(q.result) ? q.result : null,
+    };
+  }
+
   async function onMessage(topic, payload) {
     if (!S.key || !topic.startsWith(S.base + '/')) return;
     const str = payload.toString();
@@ -704,7 +753,7 @@
       const m = await open(str);
       if (!m || m.v !== 1 || m.t !== 'state' || !Number.isFinite(m.ts) || !MODES.includes(m.mode)) return;
       if (m.ts <= S.state.ts) return; // 古い・重複
-      S.state = { ts: m.ts, by: String(m.by || ''), mode: m.mode, game: sanitizeGame(m.game) };
+      S.state = { ts: m.ts, by: String(m.by || ''), mode: m.mode, game: sanitizeGame(m.game), gather: sanitizeGather(m.gather) };
       S.lobbySig = '';
       render();
       return;
@@ -828,7 +877,64 @@
     const role = S.pid === g.oni ? 'oni' : g.runners.includes(S.pid) ? (g.caught[S.pid] ? 'caught' : 'runner') : 'spectator';
     return { g, end, caughtList, allCaught, lastCatch, ended, phase, role, winner: ended ? (allCaught ? 'oni' : 'runners') : null };
   }
-  const nameOf = (pid) => (pid === S.pid ? S.name : S.state.game.names[pid] || S.peers.get(pid)?.name || 'だれか');
+  const nameOf = (pid) => (pid === S.pid ? S.name : S.state.game.names[pid] || S.state.gather.names[pid] || S.peers.get(pid)?.name || 'だれか');
+
+  // ================= 集合ゲームの判定 =================
+  function gatherInfo(now) {
+    const q = S.state.gather;
+    if (S.state.mode !== 'distance' || q.phase === 'lobby') return null;
+    const end = q.duration > 0 ? q.startAt + q.duration * 1000 : Infinity;
+    let result = q.phase === 'ended' ? q.result || 'stopped' : null;
+    let endAt = q.phase === 'ended' ? q.endAt || now : null;
+    if (!result && now >= end) { result = 'timeup'; endAt = end; }
+    const ended = !!result;
+    const phase = now < q.startAt && !ended ? 'countdown' : ended ? 'ended' : 'run';
+    const role = q.players.includes(S.pid) && !S.gm ? 'player' : 'spectator';
+    return { q, end, ended, result, endAt, phase, role };
+  }
+  const isRunning = (gi, ga) => !!((gi && !gi.ended) || (ga && !ga.ended));
+
+  // 全員の位置がそろっていて、いちばん離れた2人が集合距離以内なら「集合中」。3秒続いたら完了
+  const Gat = { since: 0, sent: false, startAt: 0 };
+  function checkGathered(ga, now) {
+    if (!ga || ga.phase !== 'run') { Gat.since = 0; return null; }
+    if (Gat.startAt !== ga.q.startAt) Object.assign(Gat, { since: 0, sent: false, startAt: ga.q.startAt });
+    const pos = [];
+    for (const pid of ga.q.players) {
+      if (pid === S.pid && !S.gm) { if (!S.last) { Gat.since = 0; return { max: null }; } pos.push(S.last); continue; }
+      const p = S.peers.get(pid);
+      if (!p || p.kind !== 'player') { Gat.since = 0; return { max: null }; }
+      pos.push(p);
+    }
+    let max = 0;
+    for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) max = Math.max(max, haversine(pos[i], pos[j]));
+    if (pos.length >= 2 && max <= ga.q.radius) {
+      if (!Gat.since) Gat.since = now;
+      else if (now - Gat.since >= 3000 && !Gat.sent) { Gat.sent = true; endGather('gathered', Gat.since); }
+    } else Gat.since = 0;
+    return { max: Math.round(max) };
+  }
+  function endGather(result, endAt) {
+    updateState((s) => { if (s.gather.phase === 'running') Object.assign(s.gather, { phase: 'ended', result, endAt }); });
+  }
+  const closeGather = () => updateState((s) => Object.assign(s.gather, { phase: 'lobby', players: [], endAt: 0, result: null }));
+
+  $$('#gatherLobby .seg').forEach((seg) => {
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      updateState((s) => { s.gather[seg.dataset.gkey] = Number(b.dataset.val); });
+    });
+  });
+  $('#startGather').addEventListener('click', () => {
+    const now = Date.now();
+    const ps = presentPlayers(now);
+    if (ps.length < 2) { $('#gatherErr').textContent = '2人以上そろってからスタートしてください。'; return; }
+    $('#gatherErr').textContent = '';
+    updateState((s) => Object.assign(s.gather, {
+      phase: 'running', players: ps.map((p) => p.pid), names: Object.fromEntries(ps.map((p) => [p.pid, p.name])),
+      startAt: now + COUNTDOWN, endAt: 0, result: null,
+    }));
+  });
 
   // 鬼ごっこに参加できる人（ゲームマスターは含めない）
   function presentPlayers(now) {
@@ -848,6 +954,8 @@
   if (LOCAL) { // 開発用：短い制限時間
     const b = el('button', null, '20秒'); b.dataset.val = '20';
     $('#tagLobby .seg[data-key="duration"]').prepend(b);
+    const b2 = el('button', null, '20秒'); b2.dataset.val = '20';
+    $('#gatherLobby .seg[data-gkey="duration"]').append(b2);
   }
   $('#players').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-oni]'); if (!b) return;
@@ -874,17 +982,18 @@
     }));
   });
   const backToLobby = () => updateState((s) => Object.assign(s.game, { phase: 'lobby', runners: [], caught: {} }));
-  $('#toLobby').addEventListener('click', backToLobby);
-  twoTap($('#abortGame'), 'ゲームを中止', 'もう一度タップで中止', backToLobby);
+  $('#toLobby').addEventListener('click', () => (S.state.mode === 'tag' ? backToLobby() : closeGather()));
+  twoTap($('#abortGame'), 'ゲームを終了', 'もう一度タップで終了', () => (S.state.mode === 'tag' ? backToLobby() : endGather('stopped', Date.now())));
 
   $('#modeSeg').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-mode]'); if (!b) return;
-    const gi = gameInfo(Date.now());
-    if (gi && !gi.ended) { toast('ゲーム中はモードを変えられません'); return; }
+    const now = Date.now();
+    if (isRunning(gameInfo(now), gatherInfo(now))) { toast('ゲーム中はモードを変えられません'); return; }
     if (S.state.mode === b.dataset.mode) return;
     updateState((s) => {
       s.mode = b.dataset.mode;
       if (s.game.phase === 'running') Object.assign(s.game, { phase: 'lobby', runners: [], caught: {} });
+      if (s.gather.phase !== 'lobby') Object.assign(s.gather, { phase: 'lobby', players: [], endAt: 0, result: null });
     });
   });
 
@@ -904,8 +1013,8 @@
       else if (S.last) send(true);
       toast('プレイヤーに戻りました。位置の共有を再開します');
     } else {
-      const gi = gameInfo(Date.now());
-      if (gi && !gi.ended && (gi.role === 'oni' || gi.role === 'runner')) { toast('ゲーム中は切り替えられません'); return; }
+      const gi = gameInfo(Date.now()), ga = gatherInfo(Date.now());
+      if ((gi && !gi.ended && (gi.role === 'oni' || gi.role === 'runner')) || (ga && !ga.ended && ga.role === 'player')) { toast('ゲーム中は切り替えられません'); return; }
       S.gm = true;
       S.lastSentAt = 0;
       send(true); // 中継サーバー上の自分の位置も「GM」の印で上書きされる
@@ -1052,11 +1161,14 @@
     const people = peerView(now);
     const mode = S.state.mode;
     const gi = gameInfo(now);
-    trackRecording(gi, now);
+    const ga = gatherInfo(now);
+    const prog = checkGathered(ga, now);
+    trackRecording(gi, ga, now);
+    const running = isRunning(gi, ga);
 
     $$('#modeSeg button').forEach((b) => {
       b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
-      b.disabled = !!(gi && !gi.ended);
+      b.disabled = running; // ゲーム中はモード固定
     });
 
     let items = [];
@@ -1064,7 +1176,9 @@
     let hint = '';
 
     if (mode === 'distance') {
-      hint = 'おたがいの距離だけが見えます。';
+      hint = ga && !ga.ended ? '集合ゲーム中：モードは固定されています。おたがいの距離だけが見えます。' : 'おたがいの距離だけが見えます。';
+      if (!ga) renderGatherLobby(now);
+      else renderGatherHud(ga, prog, now);
       items = people.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) || byName(a, b))
         .map((o) => ({ o, opt: { dist: true, track: true, dim: !o.online, meta: liveMeta(o, true) } }));
       empty = people.length === 0;
@@ -1076,7 +1190,7 @@
       const g = S.state.game;
       const seeTxt = { dir: '方角', dist: '距離', both: '距離と方角' };
       hint = `鬼ごっこ：鬼には逃げる人の${seeTxt[g.seeOni]}、逃げる人には鬼の${seeTxt[g.seeRunner]}が見えます。`;
-      if (!gi) { renderLobby(now); renderRecLists(false); }
+      if (!gi) renderLobby(now);
       else items = renderGame(gi, people, now);
     }
     $('#modeHint').textContent = hint;
@@ -1092,15 +1206,19 @@
       ensureMap();
       if (wasHidden && M.map) setTimeout(() => { M.map.invalidateSize(); M.fitKey = ''; render(); }, 0);
       renderMap(now, gi);
-      renderGMList(now, gi);
+      renderGMList(now, gi, ga);
     }
 
     $('#tagLobby').hidden = !(mode === 'tag' && !gi);
-    $('#tagHud').hidden = !(gi && !gi.ended);
-    $('#tagResult').hidden = !(gi && gi.ended);
-    $('#teamWrap').hidden = !gi;
-    $('#abortGame').parentElement.hidden = !(gi && !gi.ended);
+    $('#gatherLobby').hidden = !(mode === 'distance' && !ga);
+    $('#tagHud').hidden = !running;
+    $('#tagResult').hidden = !((gi && gi.ended) || (ga && ga.ended));
+    $('#teamWrap').hidden = !(gi || ga);
+    $('#abortGame').parentElement.hidden = !running;
+    $('#toLobby').textContent = ga ? '閉じる' : 'ロビーに戻る';
     $('#empty').hidden = !empty;
+    renderRecLists(false);
+    $('#recLobbyWrap').hidden = running || !Rec.hasDone;
 
     applyCards(items);
     const anyDir = items.some((i) => i.opt.dir && i.o.distance != null);
@@ -1138,8 +1256,8 @@
   function renderGMLine(now) {
     const line = $('#gmLine'), txt = $('#gmText'), btn = $('#gmToggle');
     const others = onlineGMs(now).map((p) => p.name);
-    const gi = gameInfo(now);
-    const playing = gi && !gi.ended && (gi.role === 'oni' || gi.role === 'runner');
+    const gi = gameInfo(now), ga = gatherInfo(now);
+    const playing = (gi && !gi.ended && (gi.role === 'oni' || gi.role === 'runner')) || (ga && !ga.ended && ga.role === 'player');
     if (S.gm) {
       line.className = 'gmline me';
       txt.textContent = 'あなたはゲームマスター（地図で全員の位置が見えます）';
@@ -1277,7 +1395,7 @@
     }
   }
 
-  function renderGMList(now, gi) {
+  function renderGMList(now, gi, ga) {
     const ul = $('#gmList');
     ul.textContent = '';
     const entries = playerEntries();
@@ -1301,6 +1419,72 @@
       if (role === 'caught') right.classList.add('bad-t');
       li.append(who, right);
       ul.append(li);
+    }
+  }
+
+  // ---- 集合ゲーム：準備画面 ----
+  function renderGatherLobby(now) {
+    const q = S.state.gather;
+    $$('#gatherLobby .seg').forEach((seg) => {
+      const v = String(q[seg.dataset.gkey]);
+      seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.val === v)));
+    });
+    $('#gRadiusTxt').textContent = q.radius;
+    const lim = q.duration === 0 ? 'なし' : q.duration < 60 ? `${q.duration}秒` : `${q.duration / 60}分`;
+    $('#gSettingSum').textContent = `設定：集合 ${q.radius}m・制限時間 ${lim}`;
+    const n = presentPlayers(now).length;
+    const btn = $('#startGather');
+    btn.textContent = `集合ゲームをスタート（${n}人）`;
+    btn.disabled = n < 2;
+  }
+
+  // ---- 集合ゲーム：プレイ中と結果 ----
+  function renderGatherHud(ga, prog, now) {
+    const q = ga.q;
+    const roleEl = $('#roleLabel');
+    roleEl.className = 'role';
+    roleEl.textContent = '';
+    roleEl.append('集合ゲーム', el('b', null, S.gm ? 'ゲームマスター' : ga.role === 'player' ? '集まれ！' : '観戦中'));
+
+    const timer = $('#timer');
+    if (ga.phase === 'countdown') timer.textContent = String(Math.ceil((q.startAt - now) / 1000));
+    else if (q.duration > 0) timer.textContent = mmss(ga.end - now);
+    else timer.textContent = mmss(now - q.startAt);
+    timer.classList.toggle('low', ga.phase === 'run' && q.duration > 0 && ga.end - now < 60000);
+
+    const banner = $('#banner');
+    let msg = 'まもなくスタート！';
+    if (ga.phase !== 'countdown') {
+      if (ga.role === 'spectator' && !S.gm) msg = '途中から参加したので、集合判定には含まれません。';
+      else if (Gat.since) msg = `集合判定中…（全員が ${q.radius}m 以内にいます。このまま3秒）`;
+      else {
+        msg = `全員がおたがい ${q.radius}m 以内に集まったらクリア。`;
+        if (prog && prog.max != null) msg += `いちばん離れている2人：${fmt(prog.max).join(' ')}`;
+        else if (prog) msg += '全員の位置がそろうのを待っています…';
+      }
+    }
+    banner.textContent = msg;
+    banner.hidden = ga.ended;
+    banner.classList.remove('alert');
+    banner.classList.toggle('good', !!Gat.since);
+
+    if (ga.ended) {
+      $('#resultTitle').textContent = ga.result === 'gathered' ? '集合完了！' : ga.result === 'timeup' ? '時間切れ' : '終了しました';
+      $('#resultSub').textContent = ga.result === 'gathered'
+        ? `タイム ${mmss(ga.endAt - q.startAt)}（全員が ${q.radius}m 以内）`
+        : ga.result === 'timeup' ? `${mmss(q.duration * 1000)} 以内に集まれませんでした` : `${mmss(Math.max(0, ga.endAt - q.startAt))} で終了`;
+    }
+
+    const team = $('#team');
+    team.textContent = '';
+    for (const pid of q.players) {
+      const li = el('li');
+      const who = el('span', 'who');
+      who.append(el('b', null, nameOf(pid)), pid === S.pid ? '（あなた）' : '');
+      const p = S.peers.get(pid);
+      const online = pid === S.pid || !!(p && p.kind === 'player' && now - p.ts < OFFLINE_AFTER);
+      li.append(who, el('span', 'd' + (online ? '' : ' bad-t'), online ? '参加中' : '接続切れ'));
+      team.append(li);
     }
   }
 
@@ -1417,39 +1601,75 @@
     return [];
   }
 
-  // ================= 記録（鬼ごっこの振り返り） =================
+  // ================= 記録（ゲームの振り返り） =================
   // ゲーム中に届いた全員の位置を、この端末の中だけに記録する。見られるのは終了したゲームだけ。
-  const REC_KEY = 'kyori.records.v1';
+  // 保存：一覧（小さい目次）と、記録1件ずつを別々のキーに置く（長いゲームでも重くならないように）
+  const IDX_KEY = 'kyori.recidx.v1';
+  const REC_PREFIX = 'kyori.rec.v1.';
+  const OLD_KEY = 'kyori.records.v1';
   const REC_MAX = 12;
-  const Rec = { cur: null, lastSave: 0, listSig: '' };
+  const Rec = { cur: null, lastSave: 0, listDirty: true, hasDone: false };
 
-  function loadRecords() {
-    try { const a = JSON.parse(localStorage.getItem(REC_KEY) || '[]'); return Array.isArray(a) ? a : []; }
-    catch (_) { return []; }
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+  const lsDel = (k) => { try { localStorage.removeItem(k); } catch (_) {} };
+  function loadIndex() {
+    try { const a = JSON.parse(lsGet(IDX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (_) { return []; }
   }
-  function saveRecords(list) {
-    for (;;) { // 容量がいっぱいなら古いものから消す
-      try { localStorage.setItem(REC_KEY, JSON.stringify(list)); return true; }
-      catch (_) { if (list.length <= 1) return false; list.shift(); }
+  function saveIndex(idx) { try { localStorage.setItem(IDX_KEY, JSON.stringify(idx)); } catch (_) {} }
+  function loadRecord(id) { try { return JSON.parse(lsGet(REC_PREFIX + id) || 'null'); } catch (_) { return null; } }
+  const recPlayers = (r) => (Array.isArray(r.players) ? r.players : [r.oni, ...(r.runners || [])].filter(Boolean));
+  function indexEntry(r) {
+    return {
+      id: r.id, kind: r.kind === 'gather' ? 'gather' : 'tag', startAt: r.startAt, endAt: r.endAt, done: !!r.done,
+      aborted: !!r.aborted, winner: r.winner || null, result: r.result || null,
+      oniName: r.oni ? (r.names[r.oni] || 'だれか') : null, n: recPlayers(r).length,
+    };
+  }
+  function storeRecord(r) {
+    let idx = loadIndex().filter((e) => e.id !== r.id);
+    idx.push(indexEntry(r));
+    idx.sort((a, b) => a.startAt - b.startAt);
+    while (idx.length > REC_MAX) { const old = idx.shift(); lsDel(REC_PREFIX + old.id); }
+    const data = JSON.stringify(r);
+    for (;;) { // 容量がいっぱいなら古い記録から消す
+      try { localStorage.setItem(REC_PREFIX + r.id, data); break; }
+      catch (_) {
+        const victim = idx.find((e) => e.id !== r.id);
+        if (!victim) { saveIndex(idx.filter((e) => e.id !== r.id)); Rec.listDirty = true; return false; }
+        idx = idx.filter((e) => e !== victim);
+        lsDel(REC_PREFIX + victim.id);
+      }
     }
+    saveIndex(idx);
+    Rec.listDirty = true;
+    return true;
   }
+  function deleteRecord(id) {
+    lsDel(REC_PREFIX + id);
+    saveIndex(loadIndex().filter((e) => e.id !== id));
+    Rec.listDirty = true;
+  }
+  (function migrateOld() { // 前の版の保存形式から移す
+    const old = lsGet(OLD_KEY);
+    if (!old) return;
+    try { for (const r of JSON.parse(old)) if (r && r.id) storeRecord(r); } catch (_) {}
+    lsDel(OLD_KEY);
+  })();
+
   function persistCur(force) {
     const r = Rec.cur;
     if (!r) return;
     const now = Date.now();
     if (!force && now - Rec.lastSave < 15000) return;
     Rec.lastSave = now;
-    const list = loadRecords().filter((x) => x.id !== r.id);
-    list.push(r);
-    while (list.length > REC_MAX) list.shift();
-    if (!saveRecords(list) && force) toast('記録を保存できませんでした（端末の容量不足）');
+    if (!storeRecord(r) && force) toast('記録を保存できませんでした（端末の容量不足）');
   }
 
   function recPoint(pid, lat, lng, ts) {
     const r = Rec.cur;
-    if (!r || r.done || (pid !== r.oni && !r.runners.includes(pid))) return;
+    if (!r || r.done || !recPlayers(r).includes(pid)) return;
     const t = Math.max(0, Math.round((ts - r.startAt) / 100) / 10); // スタートからの秒（0.1秒単位）
-    if (t > r.duration + 5) return;
+    if (r.duration > 0 && t > r.duration + 5) return;
     const tr = r.tracks[pid] || (r.tracks[pid] = []);
     const la = Math.round(lat * 1e6), ln = Math.round(lng * 1e6);
     const last = tr[tr.length - 1];
@@ -1459,8 +1679,33 @@
     tr.push([t, la, ln]);
   }
 
-  function trackRecording(gi, now) {
-    if (!gi) { // ゲームが終わる前にロビーに戻った（中止）
+  // 今のゲーム（鬼ごっこ／集合ゲーム）を記録の形にまとめる
+  function sessionOf(gi, ga) {
+    if (gi) {
+      const g = gi.g;
+      return {
+        kind: 'tag', startAt: g.startAt, ended: gi.ended,
+        make: () => ({ kind: 'tag', duration: g.duration, headStart: g.headStart, radius: g.radius, seeOni: g.seeOni, seeRunner: g.seeRunner,
+          oni: g.oni, runners: g.runners.slice(), players: [g.oni, ...g.runners], names: { ...g.names }, caught: {}, winner: null }),
+        update: (r) => { r.caught = Object.fromEntries(Object.entries(g.caught).filter(([, v]) => v <= gi.end)); },
+        finish: (r) => { r.winner = gi.winner; r.endAt = gi.allCaught ? gi.lastCatch : gi.end; },
+      };
+    }
+    if (ga) {
+      const q = ga.q;
+      return {
+        kind: 'gather', startAt: q.startAt, ended: ga.ended,
+        make: () => ({ kind: 'gather', duration: q.duration, radius: q.radius, players: q.players.slice(), names: { ...q.names }, result: null }),
+        update: () => {},
+        finish: (r) => { r.result = ga.result; r.endAt = ga.endAt; },
+      };
+    }
+    return null;
+  }
+
+  function trackRecording(gi, ga, now) {
+    const ss = sessionOf(gi, ga);
+    if (!ss) { // 終わる前にロビーに戻った（中止）
       if (Rec.cur && !Rec.cur.done) {
         const r = Rec.cur;
         r.done = true; r.aborted = true;
@@ -1470,73 +1715,62 @@
       Rec.cur = null;
       return;
     }
-    const g = gi.g;
-    const id = `${(S.topicId || '').slice(0, 8)}-${g.startAt}`;
+    const id = `${(S.topicId || '').slice(0, 8)}-${ss.kind}-${ss.startAt}`;
     if (!Rec.cur || Rec.cur.id !== id) {
-      const saved = loadRecords().find((x) => x.id === id);
-      if (!saved && gi.ended) { Rec.cur = null; return; } // 終わったあとに来た人は記録なし
-      Rec.cur = saved || {
-        v: 1, id, startAt: g.startAt, duration: g.duration, headStart: g.headStart, radius: g.radius,
-        seeOni: g.seeOni, seeRunner: g.seeRunner, oni: g.oni, runners: g.runners.slice(), names: { ...g.names },
-        caught: {}, tracks: {}, done: false, aborted: false, endAt: null, winner: null,
-      };
+      const saved = loadRecord(id);
+      if (!saved && ss.ended) { Rec.cur = null; return; } // 終わったあとに来た人は記録なし
+      Rec.cur = saved || { v: 1, id, startAt: ss.startAt, tracks: {}, done: false, aborted: false, endAt: null, ...ss.make() };
       Rec.lastSave = 0;
-      // スタート時点の位置を入れておく
-      if (!Rec.cur.done) {
+      if (!Rec.cur.done) { // スタート時点の位置を入れておく
         if (S.last && !S.gm) recPoint(S.pid, S.last.lat, S.last.lng, now);
         for (const [pid, p] of playerEntries()) recPoint(pid, p.lat, p.lng, p.ts);
       }
     }
     const r = Rec.cur;
     if (r.done) return;
-    r.caught = Object.fromEntries(Object.entries(g.caught).filter(([, v]) => v <= gi.end));
-    if (gi.ended) {
-      r.done = true;
-      r.winner = gi.winner;
-      r.endAt = gi.allCaught ? gi.lastCatch : gi.end;
-      persistCur(true);
-      Rec.listSig = '';
-    } else {
-      persistCur(false);
-    }
+    ss.update(r);
+    if (ss.ended) { r.done = true; ss.finish(r); persistCur(true); }
+    else persistCur(false);
   }
-  const finishedRecords = () => loadRecords().filter((r) => r.done).reverse(); // 新しい順
 
-  function recSummary(r) {
-    const d = new Date(r.startAt);
+  function recSummary(e) {
+    const d = new Date(e.startAt);
     const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-    const result = r.aborted ? '中止' : r.winner === 'oni' ? `鬼の勝ち（${mmss(r.endAt - r.startAt)}）` : '逃げる人の勝ち';
-    return { title: `${when} · 鬼 ${r.names[r.oni] || 'だれか'}`, sub: `${1}対${r.runners.length} · ${result}` };
+    if (e.kind === 'gather') {
+      const res = e.aborted ? '中止' : e.result === 'gathered' ? `集合完了（${mmss(e.endAt - e.startAt)}）` : e.result === 'timeup' ? '時間切れ' : `終了（${mmss(Math.max(0, e.endAt - e.startAt))}）`;
+      return { title: `${when} · 集合ゲーム`, sub: `${e.n}人 · ${res}` };
+    }
+    const res = e.aborted ? '中止' : e.winner === 'oni' ? `鬼の勝ち（${mmss(e.endAt - e.startAt)}）` : '逃げる人の勝ち';
+    return { title: `${when} · 鬼ごっこ（鬼 ${e.oniName || 'だれか'}）`, sub: `1対${Math.max(0, e.n - 1)} · ${res}` };
   }
 
   function renderRecLists(force) {
-    const recs = finishedRecords();
-    const sig = recs.map((r) => r.id).join(',');
-    if (!force && sig === Rec.listSig) return;
-    Rec.listSig = sig;
-    for (const [wrapId, listId] of [['#recEntryWrap', '#recListEntry'], ['#recLobbyWrap', '#recListLobby']]) {
+    if (!force && !Rec.listDirty) return;
+    Rec.listDirty = false;
+    const recs = loadIndex().filter((e) => e.done).reverse(); // 新しい順
+    Rec.hasDone = recs.length > 0;
+    for (const listId of ['#recListEntry', '#recListLobby']) {
       const ul = $(listId);
       ul.textContent = '';
-      for (const r of recs) {
-        const s = recSummary(r);
+      for (const e of recs) {
+        const s = recSummary(e);
         const li = el('li');
         const who = el('span', 'who');
         who.append(el('b', null, s.title), el('small', null, s.sub));
         const acts = el('span', 'acts');
         const view = el('button', 'chip primary', '見る');
-        view.dataset.rec = r.id;
+        view.dataset.rec = e.id;
         acts.append(view);
         li.append(who, acts);
         ul.append(li);
       }
-      $(wrapId).hidden = recs.length === 0 && wrapId === '#recLobbyWrap';
-      if (wrapId === '#recEntryWrap') $('#recListEntry').hidden = recs.length === 0;
     }
+    $('#recListEntry').hidden = !Rec.hasDone;
   }
   ['#recListEntry', '#recListLobby'].forEach((id) => $(id).addEventListener('click', (e) => {
     const b = e.target.closest('button[data-rec]'); if (!b) return;
-    const r = loadRecords().find((x) => x.id === b.dataset.rec);
-    if (r) openReplay(r);
+    const r = loadRecord(b.dataset.rec);
+    if (r) openReplay(r); else { toast('記録を読み込めませんでした'); deleteRecord(b.dataset.rec); renderRecLists(true); }
   }));
   $('#rpOpenResult').addEventListener('click', () => {
     if (Rec.cur && Rec.cur.done) openReplay(Rec.cur);
@@ -1551,21 +1785,27 @@
     for (const [pid, tr] of Object.entries(x.tracks || {}).slice(0, 60)) {
       if (!str(pid) || !Array.isArray(tr)) continue;
       tracks[pid] = tr.filter((p) => Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)
-        && Math.abs(p[1]) <= 90e6 && Math.abs(p[2]) <= 180e6).slice(0, 20000);
+        && Math.abs(p[1]) <= 90e6 && Math.abs(p[2]) <= 180e6).slice(0, 30000);
     }
     const names = {};
     for (const [k, v] of Object.entries(x.names || {}).slice(0, 60)) if (str(k)) names[k] = String(v || '').slice(0, 20);
     const caught = {};
     for (const [k, v] of Object.entries(x.caught || {}).slice(0, 60)) if (str(k) && Number.isFinite(v)) caught[k] = v;
+    const kind = x.kind === 'gather' ? 'gather' : 'tag';
+    const runners = Array.isArray(x.runners) ? x.runners.filter(str).slice(0, 60) : [];
+    const oni = str(x.oni);
+    const players = Array.isArray(x.players) ? x.players.filter(str).slice(0, 60) : [oni, ...runners].filter(Boolean);
     return {
-      v: 1, id: String(x.id || `import-${x.startAt}`).slice(0, 60), startAt: x.startAt,
-      duration: Math.min(7200, Math.max(10, x.duration)), headStart: Number.isFinite(x.headStart) ? x.headStart : 0,
+      v: 1, kind, id: String(x.id || `import-${x.startAt}`).replace(/[^\w.-]/g, '').slice(0, 80) || `import-${x.startAt}`,
+      startAt: x.startAt, duration: Math.min(7200, Math.max(0, x.duration)),
+      headStart: Number.isFinite(x.headStart) ? Math.max(0, x.headStart) : 0,
       radius: Number.isFinite(x.radius) ? Math.min(200, Math.max(5, x.radius)) : 20,
       seeOni: SEE.includes(x.seeOni) ? x.seeOni : 'dir', seeRunner: SEE.includes(x.seeRunner) ? x.seeRunner : 'dist',
-      oni: str(x.oni), runners: Array.isArray(x.runners) ? x.runners.filter(str).slice(0, 60) : [],
-      names, caught, tracks, done: true, aborted: !!x.aborted,
-      endAt: Number.isFinite(x.endAt) ? x.endAt : x.startAt + x.duration * 1000,
-      winner: x.winner === 'oni' ? 'oni' : 'runners',
+      oni: kind === 'tag' ? oni : null, runners: kind === 'tag' ? runners : [], players,
+      names, caught: kind === 'tag' ? caught : {}, tracks, done: true, aborted: !!x.aborted,
+      endAt: Number.isFinite(x.endAt) ? x.endAt : x.startAt + Math.max(1, x.duration) * 1000,
+      winner: kind === 'tag' ? (x.winner === 'oni' ? 'oni' : 'runners') : null,
+      result: kind === 'gather' && GATHER_RESULTS.includes(x.result) ? x.result : null,
     };
   }
   $('#recImport').addEventListener('change', async (e) => {
@@ -1576,10 +1816,7 @@
     let r = null;
     try { const j = JSON.parse(await f.text()); r = sanitizeRecord(j && j.kyori === 'replay' ? j.record : j); } catch (_) {}
     if (!r) { toast('kyori の記録ファイルではないようです'); return; }
-    const list = loadRecords().filter((x) => x.id !== r.id);
-    list.push(r);
-    while (list.length > REC_MAX) list.shift();
-    saveRecords(list);
+    storeRecord(r);
     renderRecLists(true);
     openReplay(r);
   });
@@ -1608,16 +1845,20 @@
     if (RP.zone) { RP.zone.remove(); RP.zone = null; }
 
     RP.rec = rec;
+    const isTag = rec.kind !== 'gather';
     const endT = Math.max(1, (rec.endAt - rec.startAt) / 1000);
     RP.dur = endT;
-    const s = recSummary(rec);
+    const s = recSummary(indexEntry(rec));
     $('#rpTitle').textContent = s.title;
-    $('#rpSub').textContent = `${s.sub} · 逃げる時間 ${rec.headStart}秒 · 確保 ${rec.radius}m`;
+    $('#rpSub').textContent = isTag
+      ? `${s.sub} · 逃げる時間 ${rec.headStart}秒 · 確保 ${rec.radius}m`
+      : `${s.sub} · 集合 ${rec.radius}m`;
 
     const all = [];
-    for (const pid of [rec.oni, ...rec.runners]) {
+    const caught = rec.caught || {};
+    for (const pid of recPlayers(rec)) {
       const tr = rec.tracks[pid] || [];
-      const isOni = pid === rec.oni;
+      const isOni = isTag && pid === rec.oni;
       const color = isOni ? '#ff6b5e' : '#f2f1ed';
       const full = L.polyline(tr.map((p) => [p[1] / 1e6, p[2] / 1e6]), { color, weight: 1.5, opacity: 0.15, interactive: false }).addTo(RP.map);
       const past = L.polyline([], { color, weight: 3, opacity: 0.8, interactive: false }).addTo(RP.map);
@@ -1626,32 +1867,41 @@
       RP.layers.push(full, past, marker);
       RP.players.push({ pid, tr, isOni, past, marker, pin, shown: false });
       tr.forEach((p) => all.push([p[1] / 1e6, p[2] / 1e6]));
-      // 確保された場所に × を置く
-      if (rec.caught[pid] && tr.length) {
-        const ct = (rec.caught[pid] - rec.startAt) / 1000;
+      if (caught[pid] && tr.length) { // 確保された場所に × を置く
+        const ct = (caught[pid] - rec.startAt) / 1000;
         const at = posAt(tr, ct) || { lat: tr[tr.length - 1][1] / 1e6, lng: tr[tr.length - 1][2] / 1e6 };
-        const mk = L.marker([at.lat, at.lng], { icon: L.divIcon({ className: 'pin-wrap', html: '<span class="catchmark">×</span>', iconSize: [0, 0] }), interactive: false }).addTo(RP.map);
-        RP.layers.push(mk);
+        RP.layers.push(L.marker([at.lat, at.lng], { icon: L.divIcon({ className: 'pin-wrap', html: '<span class="catchmark">×</span>', iconSize: [0, 0] }), interactive: false }).addTo(RP.map));
+      }
+    }
+    // 集合ゲーム：集合した場所（最後の位置の真ん中）を円で示す
+    if (!isTag && rec.result === 'gathered') {
+      const ps = RP.players.map((p) => posAt(p.tr, endT)).filter(Boolean);
+      if (ps.length) {
+        const c = [ps.reduce((a, p) => a + p.lat, 0) / ps.length, ps.reduce((a, p) => a + p.lng, 0) / ps.length];
+        RP.layers.push(L.circle(c, { radius: rec.radius / 2, color: '#c8ff3d', weight: 1.5, fillColor: '#c8ff3d', fillOpacity: 0.12, interactive: false }).addTo(RP.map));
       }
     }
 
     // できごと
     const ev = [{ t: 0, text: 'スタート' }];
-    if (rec.headStart > 0 && rec.headStart < endT) ev.push({ t: rec.headStart, text: '鬼が動き出す' });
-    for (const pid of rec.runners) if (rec.caught[pid]) ev.push({ t: (rec.caught[pid] - rec.startAt) / 1000, text: `${rec.names[pid] || 'だれか'} を確保`, catch: true });
-    ev.push({ t: endT, text: rec.aborted ? '中止' : rec.winner === 'oni' ? '全員確保（鬼の勝ち）' : '時間切れ（逃げる人の勝ち）' });
+    if (isTag) {
+      if (rec.headStart > 0 && rec.headStart < endT) ev.push({ t: rec.headStart, text: '鬼が動き出す' });
+      for (const pid of rec.runners) if (caught[pid]) ev.push({ t: (caught[pid] - rec.startAt) / 1000, text: `${rec.names[pid] || 'だれか'} を確保`, hot: true });
+      ev.push({ t: endT, text: rec.aborted ? '中止' : rec.winner === 'oni' ? '全員確保（鬼の勝ち）' : '時間切れ（逃げる人の勝ち）' });
+    } else {
+      ev.push({ t: endT, text: rec.aborted ? '中止' : rec.result === 'gathered' ? '集合完了！' : rec.result === 'timeup' ? '時間切れ' : '終了', hot: rec.result === 'gathered' });
+    }
     ev.sort((a, b) => a.t - b.t);
     const ul = $('#rpEvents');
     ul.textContent = '';
     for (const e of ev) {
       const li = el('li');
-      li.append(el('span', 'who' + (e.catch ? ' bad-t' : ''), e.text), el('span', 'd', mmss(e.t * 1000)));
-      li.addEventListener('click', () => { seekReplay(Math.max(0, e.t - (e.catch ? 5 : 0))); });
+      li.append(el('span', 'who' + (e.hot ? (isTag ? ' bad-t' : ' ok-t') : ''), e.text), el('span', 'd', mmss(e.t * 1000)));
+      li.addEventListener('click', () => { seekReplay(Math.max(0, e.t - (e.hot ? 5 : 0))); });
       ul.append(li);
     }
 
-    const seek = $('#rpSeek');
-    seek.max = String(endT);
+    $('#rpSeek').max = String(endT);
     setSpeed(RP.speed);
     pauseReplay();
     setTimeout(() => {
@@ -1664,7 +1914,10 @@
 
   function drawReplay() {
     const rec = RP.rec, t = RP.t;
+    const isTag = rec.kind !== 'gather';
+    const caught = rec.caught || {};
     let oniPos = null;
+    const now = [];
     for (const p of RP.players) {
       const pos = posAt(p.tr, t);
       if (!pos) { if (p.shown) { p.marker.remove(); p.shown = false; } p.past.setLatLngs([]); continue; }
@@ -1673,14 +1926,23 @@
       const pts = p.tr.slice(0, pos.i + 1).map((q) => [q[1] / 1e6, q[2] / 1e6]);
       pts.push([pos.lat, pos.lng]);
       p.past.setLatLngs(pts);
-      const caught = !p.isOni && rec.caught[p.pid] && (rec.caught[p.pid] - rec.startAt) / 1000 <= t;
-      p.pin.pin.className = 'pin ' + (p.isOni ? 'oni' : caught ? 'caught' : 'runner');
+      const isCaught = !p.isOni && caught[p.pid] && (caught[p.pid] - rec.startAt) / 1000 <= t;
+      p.pin.pin.className = 'pin ' + (p.isOni ? 'oni' : isCaught ? 'caught' : 'runner');
       if (p.isOni) oniPos = pos;
+      now.push(pos);
     }
-    if (oniPos && t >= rec.headStart) {
+    if (isTag && oniPos && t >= rec.headStart) {
       if (!RP.zone) RP.zone = L.circle([oniPos.lat, oniPos.lng], { radius: rec.radius, color: '#ff6b5e', weight: 1, fillColor: '#ff6b5e', fillOpacity: 0.12, interactive: false }).addTo(RP.map);
       else RP.zone.setLatLng([oniPos.lat, oniPos.lng]);
     } else if (RP.zone) { RP.zone.remove(); RP.zone = null; }
+    // 集合ゲーム：その時点でいちばん離れていた2人の距離
+    let info = '';
+    if (!isTag && now.length >= 2) {
+      let max = 0;
+      for (let i = 0; i < now.length; i++) for (let j = i + 1; j < now.length; j++) max = Math.max(max, haversine(now[i], now[j]));
+      info = `この時点でいちばん離れている2人：${fmt(Math.round(max)).join(' ')}`;
+    }
+    $('#rpInfo').textContent = info;
     $('#rpSeek').value = String(t);
     $('#rpTime').textContent = `${mmss(t * 1000)} / ${mmss(RP.dur * 1000)}`;
   }
@@ -1715,8 +1977,9 @@
   $('#rpClose').addEventListener('click', () => {
     pauseReplay();
     $('#replay').hidden = true;
-    $(RP.back && (RP.back === '#room' ? S.room : true) ? RP.back : '#entry').hidden = false;
+    $(RP.back === '#room' && S.room ? '#room' : '#entry').hidden = false;
     renderRecLists(true);
+    if (S.room) render();
   });
   $('#rpExport').addEventListener('click', () => {
     const r = RP.rec; if (!r) return;
@@ -1724,13 +1987,14 @@
     const d = new Date(r.startAt);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `kyori-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
+    a.download = `kyori-${r.kind === 'gather' ? 'gather' : 'tag'}-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json`;
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   });
   twoTap($('#rpDelete'), 'この記録を削除', 'もう一度タップで削除', () => {
     const r = RP.rec; if (!r) return;
-    saveRecords(loadRecords().filter((x) => x.id !== r.id));
+    deleteRecord(r.id);
+    if (Rec.cur && Rec.cur.id === r.id) Rec.cur = null;
     toast('記録を削除しました');
     $('#rpClose').click();
   });
