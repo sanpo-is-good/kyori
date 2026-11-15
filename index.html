@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="参加者どうしの距離だけを共有する。位置は見せない。">
+<meta name="referrer" content="no-referrer">
+<title>kyori — 距離だけを共有する</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --panel: #16161a;
+    --line: #2a2a31;
+    --text: #f2f1ed;
+    --dim: #8c8b93;
+    --faint: #55545c;
+    --accent: #c8ff3d;
+    --warn: #ffb547;
+    --bad: #ff6b5e;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100dvh;
+    padding: calc(env(safe-area-inset-top) + 16px) calc(env(safe-area-inset-right) + 20px)
+             calc(env(safe-area-inset-bottom) + 24px) calc(env(safe-area-inset-left) + 20px);
+  }
+  main { max-width: 520px; margin: 0 auto; }
+  [hidden] { display: none !important; }
+  button, input { font: inherit; color: inherit; }
+
+  /* ---------- 入口 ---------- */
+  .brand { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 56px; }
+  .brand b { font-family: var(--mono); font-weight: 600; letter-spacing: .04em; font-size: 18px; }
+  .brand span { color: var(--dim); font-size: 13px; }
+  .lead { font-size: clamp(34px, 10vw, 48px); line-height: 1.25; font-weight: 700; margin: 0 0 40px; letter-spacing: .01em; }
+  .lead em { font-style: normal; color: var(--accent); }
+  .field { display: block; margin-bottom: 18px; }
+  .field span { display: block; font-size: 12px; color: var(--dim); margin-bottom: 8px; letter-spacing: .06em; }
+  .field input {
+    width: 100%; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel); font-size: 17px; outline: none;
+  }
+  .field input:focus { border-color: var(--text); }
+  #code { font-family: var(--mono); text-transform: uppercase; letter-spacing: .2em; }
+  .btn {
+    display: block; width: 100%; padding: 16px; border-radius: 999px; border: 0; cursor: pointer;
+    font-size: 16px; font-weight: 700; background: var(--text); color: var(--bg); margin-top: 10px;
+  }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); font-weight: 500; }
+  .btn:active { transform: scale(.99); }
+  .btn:disabled { opacity: .5; }
+  .fine { color: var(--dim); font-size: 12.5px; line-height: 1.7; margin-top: 28px; }
+  .err { color: var(--bad); font-size: 14px; line-height: 1.6; min-height: 1em; margin: 14px 0 0; }
+
+  /* ---------- ルーム ---------- */
+  .bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .roomid small { display: block; font-size: 11px; color: var(--dim); letter-spacing: .12em; }
+  .roomid b { font-family: var(--mono); font-size: 20px; letter-spacing: .14em; }
+  .actions { display: flex; gap: 8px; }
+  .chip {
+    border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 8px 14px;
+    font-size: 13px; cursor: pointer;
+  }
+  .chip.primary { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 700; }
+
+  .status {
+    display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim);
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 26px; line-height: 1.5;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--faint); }
+  .dot.ok { background: var(--accent); box-shadow: 0 0 0 4px rgba(200,255,61,.12); }
+  .dot.wait { background: var(--warn); animation: blink 1.2s infinite; }
+  .dot.bad { background: var(--bad); }
+  @keyframes blink { 50% { opacity: .3; } }
+
+  .axis { position: relative; height: 14px; font-family: var(--mono); font-size: 10px; color: var(--faint); margin: 0 0 6px 18px; }
+  .axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .axis span:last-child { transform: translateX(-100%); }
+
+  .person { padding: 20px 0 22px; border-top: 1px solid var(--line); transition: opacity .3s; }
+  .person:last-child { border-bottom: 1px solid var(--line); }
+  .person.off { opacity: .45; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .name { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { font-size: 12px; color: var(--dim); white-space: nowrap; font-family: var(--mono); }
+  .dist { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 14px; min-height: 64px; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: clamp(48px, 15vw, 72px); font-weight: 500; letter-spacing: -.02em; line-height: 1; }
+  .unit { font-family: var(--mono); font-size: 18px; color: var(--dim); }
+  .tag { font-size: 11px; color: var(--warn); border: 1px solid currentColor; border-radius: 999px; padding: 2px 8px; margin-left: 4px; align-self: center; }
+  .pending { font-size: 15px; color: var(--dim); align-self: center; }
+
+  .track { position: relative; height: 12px; margin-left: 18px; }
+  .track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line); }
+  .track .tick { position: absolute; top: 3px; width: 1px; height: 6px; background: var(--line); }
+  .track .me, .track .them { position: absolute; top: 50%; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, -50%); }
+  .track .me { left: -12px; background: var(--accent); }
+  .track .fill { position: absolute; left: -12px; top: 50%; height: 1px; background: var(--text); transition: width .8s cubic-bezier(.2,.8,.2,1); }
+  .track .them { background: var(--text); transition: left .8s cubic-bezier(.2,.8,.2,1); }
+
+  .empty { text-align: center; padding: 48px 0 24px; color: var(--dim); line-height: 1.8; }
+  .empty b { display: block; color: var(--text); font-size: 18px; margin-bottom: 6px; }
+  .empty .btn { margin-top: 22px; }
+
+  h2 { font-size: 12px; color: var(--dim); font-weight: 500; letter-spacing: .12em; margin: 38px 0 10px; }
+  .pairs { list-style: none; padding: 0; margin: 0; }
+  .pairs li { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .pairs li:last-child { border-bottom: 1px solid var(--line); }
+  .pairs .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
+  .pairs .who b { color: var(--text); font-weight: 600; }
+  .pairs .d { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .foot { color: var(--faint); font-size: 11.5px; line-height: 1.7; margin-top: 34px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 24px); transform: translate(-50%, 20px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: .25s; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<!-- 入口 -->
+<main id="entry">
+  <div class="brand"><b>kyori</b><span>距離だけを共有する</span></div>
+  <p class="lead">位置は見せない。<br><em>距離だけ。</em></p>
+
+  <label class="field"><span>あなたの名前</span>
+    <input id="name" maxlength="20" autocomplete="nickname" placeholder="例: いっせい"></label>
+  <label class="field"><span>ルームコード（招待された場合）</span>
+    <input id="code" maxlength="9" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="例: K7Q2-M9XA"></label>
+
+  <button class="btn" id="join">参加する</button>
+  <button class="btn ghost" id="create">新しいルームを作る</button>
+  <p class="err" id="entryErr" role="alert"></p>
+
+  <p class="fine">位置はルームごとの鍵で暗号化してスマホどうしでやり取りし、画面には距離だけを表示します。鍵は招待リンク（ルームコード）にしか含まれないため、中継サーバーや部外者には読めません。どこにも保存されず、退出すると送信をやめます。</p>
+</main>
+
+<!-- ルーム -->
+<main id="room" hidden>
+  <div class="bar">
+    <div class="roomid"><small>ROOM</small><b id="roomCode">----</b></div>
+    <div class="actions">
+      <button class="chip primary" id="share">招待</button>
+      <button class="chip" id="leave">退出</button>
+    </div>
+  </div>
+
+  <div class="status" id="status"><i class="dot wait" id="statusDot"></i><span id="statusText">準備しています…</span></div>
+
+  <div id="axis" class="axis" hidden><span style="left:20%">10m</span><span style="left:40%">100m</span><span style="left:60%">1km</span><span style="left:80%">10km</span><span style="left:100%">100km</span></div>
+  <section id="list" aria-live="polite"></section>
+
+  <div class="empty" id="empty" hidden>
+    <b>まだ誰もいません</b>
+    招待リンクを送ると、ここに相手との距離が表示されます。
+    <button class="btn" id="share2">招待リンクを送る</button>
+  </div>
+
+  <section id="pairsWrap" hidden>
+    <h2>ほかの人どうし</h2>
+    <ul class="pairs" id="pairs"></ul>
+  </section>
+
+  <p class="foot">画面を開いている間だけ位置を送ります。スリープ中や別アプリ表示中は更新が止まります。距離はGPSの誤差を含みます。</p>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="vendor/mqtt.min.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  // ================= 設定 =================
+  // 公開のMQTT中継サーバー（WebSocket/TLS）。両方に同時につなぎ、片方が落ちても動くようにしている。
+  // 中継サーバーが見るのは暗号化されたデータだけ。
+  const BROKERS = [
+    'wss://broker.emqx.io:8084/mqtt',
+    'wss://broker.hivemq.com:8884/mqtt',
+  ];
+  const TOPIC_ROOT = 'kyori/v1';
+  const OFFLINE_AFTER = 30 * 1000;     // これ以上届かなければ「接続切れ」
+  const FORGET_AFTER = 3 * 60 * 1000;  // これ以上届かなければ一覧から消す
+  const HEARTBEAT = 10 * 1000;         // 動いていなくても送る間隔
+  const MIN_GAP = 2000;                // 送信の最短間隔
+
+  // 開発用：localhost で開いたときだけ ?broker=ws://... で中継先を差し替えられる
+  const brokers = (() => {
+    const b = new URLSearchParams(location.search).get('broker');
+    const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+    return local && b ? b.split(',') : BROKERS;
+  })();
+
+  // ================= 小道具 =================
+  const $ = (s) => document.querySelector(s);
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (_) {} },
+  };
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+
+  const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 0/O/1/I は使わない
+  const CODE_RE = /^[A-HJ-NP-Z2-9]{8}$/;
+  const randomStr = (n, chars = CODE_CHARS) => {
+    const a = new Uint8Array(n); crypto.getRandomValues(a);
+    return [...a].map((b) => chars[b % chars.length]).join('');
+  };
+  const normCode = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const prettyCode = (c) => `${c.slice(0, 4)}-${c.slice(4)}`;
+
+  const b64 = (u8) => { let s = ''; for (const x of u8) s += String.fromCharCode(x); return btoa(s); };
+  const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+  // ================= 暗号 =================
+  // ルームコードから「トピック名」と「AES鍵」を作る。PBKDF2 で総当たりを重くしている。
+  async function deriveRoom(code) {
+    const base = await crypto.subtle.importKey('raw', enc.encode(code), 'PBKDF2', false, ['deriveBits']);
+    const bits = new Uint8Array(await crypto.subtle.deriveBits(
+      { name: 'PBKDF2', salt: enc.encode('kyori/v1/room'), iterations: 150000, hash: 'SHA-256' }, base, 512));
+    const topicId = [...bits.slice(0, 16)].map((x) => x.toString(16).padStart(2, '0')).join('');
+    const key = await crypto.subtle.importKey('raw', bits.slice(32, 64), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    return { topicId, key };
+  }
+  async function seal(obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, additionalData: enc.encode(S.topicId) }, S.key, enc.encode(JSON.stringify(obj))));
+    const out = new Uint8Array(1 + iv.length + ct.length);
+    out[0] = 1; out.set(iv, 1); out.set(ct, 13);
+    return b64(out);
+  }
+  async function open(str) {
+    try {
+      const u8 = unb64(str);
+      if (u8[0] !== 1 || u8.length < 30) return null;
+      const pt = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: u8.slice(1, 13), additionalData: enc.encode(S.topicId) }, S.key, u8.slice(13));
+      return JSON.parse(dec.decode(pt));
+    } catch (_) { return null; }
+  }
+
+  // ================= 状態 =================
+  const S = {
+    room: null, pid: null, name: '', topicId: null, key: null, myTopic: null,
+    clients: [], watchId: null, wake: null,
+    last: null, lastSentAt: 0, lastSentPos: null, sendTimer: null, beat: null, tick: null,
+    geoState: 'wait', geoMsg: '', myAcc: null,
+    peers: new Map(), gone: new Map(), cards: new Map(), session: 0,
+  };
+
+  // ================= 距離 =================
+  const R = 6371008.8;
+  const rad = (d) => (d * Math.PI) / 180;
+  function haversine(a, b) {
+    const s = Math.sin(rad(b.lat - a.lat) / 2) ** 2 +
+      Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+  }
+
+  // ================= 表示ユーティリティ =================
+  const fmt = (m) => {
+    if (m < 1000) return [String(m), 'm'];
+    const km = m / 1000;
+    if (km < 10) return [km.toFixed(2), 'km'];
+    if (km < 100) return [km.toFixed(1), 'km'];
+    return [Math.round(km).toLocaleString('ja-JP'), 'km'];
+  };
+  const ago = (s) => s < 5 ? 'いま' : s < 60 ? `${s}秒前` : s < 3600 ? `${Math.floor(s / 60)}分前` : `${Math.floor(s / 3600)}時間前`;
+  const scale = (m) => Math.min(1, Math.max(0, Math.log10(Math.max(m, 1)) / 5)); // 1m〜100km
+
+  let toastTimer;
+  const toast = (msg) => {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  };
+
+  // ================= 入口 =================
+  const entryErr = (msg) => { $('#entryErr').textContent = msg; };
+  $('#name').value = store.get('kyori.name') || '';
+
+  function setupEntry() {
+    const preset = normCode(location.hash.slice(1));
+    if (CODE_RE.test(preset)) {
+      $('#code').value = prettyCode(preset);
+      $('#create').hidden = true;
+      $('#join').classList.remove('ghost');
+      $('#entry').insertBefore($('#join'), $('#create'));
+    } else {
+      $('#create').hidden = false;
+      $('#create').classList.remove('ghost');
+      $('#join').classList.add('ghost');
+      $('#entry').insertBefore($('#create'), $('#join'));
+    }
+  }
+  setupEntry();
+  window.addEventListener('hashchange', () => { if (!S.room) setupEntry(); });
+
+  $('#join').addEventListener('click', () => {
+    const code = normCode($('#code').value);
+    if (!CODE_RE.test(code)) { entryErr('ルームコード（8文字）を確認してください。'); $('#code').focus(); return; }
+    enter(code);
+  });
+  $('#create').addEventListener('click', () => enter(randomStr(8)));
+  $('#code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#join').click(); });
+
+  async function enter(code) {
+    entryErr('');
+    if (!window.isSecureContext || !crypto.subtle) { entryErr('https:// のページで開いてください。'); return; }
+    if (!('geolocation' in navigator)) { entryErr('このブラウザは位置情報に対応していません。'); return; }
+    if (typeof mqtt === 'undefined') { entryErr('通信ライブラリを読み込めませんでした。再読み込みしてください。'); return; }
+
+    S.name = $('#name').value.trim().slice(0, 20) || 'だれか';
+    store.set('kyori.name', S.name);
+    S.room = code;
+    const mySession = ++S.session;
+    history.replaceState(null, '', `${location.pathname}${location.search}#${code}`);
+
+    $('#roomCode').textContent = prettyCode(code);
+    $('#entry').hidden = true;
+    $('#room').hidden = false;
+    document.title = `kyori — ${prettyCode(code)}`;
+
+    startGeo(); // タップ直後に呼ぶ（iPhone の許可ダイアログのため）
+    requestWake();
+    renderStatus();
+
+    // 同じ端末・同じルームなら同じIDを使う（再読み込みで幽霊が残らないように）
+    S.pid = store.get(`kyori.pid.${code}`) || randomStr(12, 'abcdefghijklmnopqrstuvwxyz0123456789');
+    store.set(`kyori.pid.${code}`, S.pid);
+
+    const { topicId, key } = await deriveRoom(code);
+    if (mySession !== S.session) return; // 待っている間に退出した
+    S.topicId = topicId; S.key = key;
+    S.myTopic = `${TOPIC_ROOT}/${topicId}/${S.pid}`;
+    connect();
+
+    S.beat = setInterval(() => { if (S.last) send(true); }, HEARTBEAT);
+    S.tick = setInterval(render, 1000);
+    render();
+  }
+
+  // ================= 中継サーバー =================
+  function connect() {
+    S.clients = brokers.map((url) => {
+      const c = mqtt.connect(url, {
+        clientId: `kyori_${randomStr(10, 'abcdefghijklmnopqrstuvwxyz0123456789')}`,
+        protocolVersion: 4,
+        clean: true,
+        keepalive: 30,
+        reconnectPeriod: 3000,
+        connectTimeout: 10000,
+        // 通信が突然切れたら、中継サーバー上に残した自分の最新データを消してもらう
+        will: { topic: S.myTopic, payload: '', retain: true, qos: 0 },
+      });
+      c.on('connect', () => {
+        c.subscribe(`${TOPIC_ROOT}/${S.topicId}/+`, { qos: 0 });
+        renderStatus();
+        if (S.last) send(true);
+      });
+      c.on('message', onMessage);
+      ['close', 'offline', 'error', 'reconnect'].forEach((ev) => c.on(ev, renderStatus));
+      return c;
+    });
+  }
+  const connectedCount = () => S.clients.filter((c) => c.connected).length;
+
+  async function onMessage(topic, payload) {
+    const pid = topic.slice(topic.lastIndexOf('/') + 1);
+    if (pid === S.pid || !S.key) return;
+    const str = payload.toString();
+    if (!str) return; // 片付け用の空メッセージ
+    const m = await open(str);
+    if (!m || m.v !== 1 || m.pid !== pid || !Number.isFinite(m.ts)) return;
+    const now = Date.now();
+
+    if (m.t === 'bye') {
+      S.gone.set(pid, m.ts);
+      S.peers.delete(pid);
+      render();
+      return;
+    }
+    if (m.t !== 'loc') return;
+    const lat = Number(m.lat), lng = Number(m.lng), acc = Number(m.acc);
+    if (!(lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180)) return;
+    if (now - m.ts > FORGET_AFTER) return;              // 古いデータ
+    if ((S.gone.get(pid) || 0) >= m.ts) return;         // 退出済み
+    const prev = S.peers.get(pid);
+    if (prev && prev.ts >= m.ts) return;                // もう一方の中継から届いた重複
+    S.peers.set(pid, {
+      name: String(m.name || '').slice(0, 20) || 'だれか',
+      lat, lng, acc: Number.isFinite(acc) && acc >= 0 ? acc : null,
+      ts: Math.min(m.ts, now),
+    });
+    render();
+  }
+
+  // ================= 位置情報 =================
+  function setGeo(state, msg) { S.geoState = state; S.geoMsg = msg; renderStatus(); }
+
+  function startGeo() {
+    setGeo('wait', '位置を取得しています…（許可を求められたら「許可」を選んでください）');
+    S.watchId = navigator.geolocation.watchPosition(onPos, onGeoErr, {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 30000,
+    });
+  }
+  function stopGeo() {
+    if (S.watchId != null) navigator.geolocation.clearWatch(S.watchId);
+    S.watchId = null;
+  }
+  function onPos(pos) {
+    const { latitude: lat, longitude: lng, accuracy: acc } = pos.coords;
+    S.last = { lat, lng, acc };
+    S.myAcc = acc;
+    setGeo('ok', '');
+    send(false);
+    render();
+  }
+  function onGeoErr(err) {
+    if (err.code === 1) {
+      setGeo('bad', '位置情報が許可されていません。ブラウザ（iPhoneは 設定 → プライバシーとセキュリティ → 位置情報サービス → Safari）で許可してから再読み込みしてください。');
+    } else if (err.code === 2) {
+      setGeo('wait', '位置を特定できません。屋外や窓際で試してください。');
+    } else if (!S.last) {
+      setGeo('wait', '位置の取得に時間がかかっています…');
+    }
+  }
+
+  const movedM = (a, b) => (a && b ? haversine(a, b) : Infinity);
+
+  function send(force) {
+    if (!S.last || !S.key) return;
+    const now = Date.now();
+    const gap = now - S.lastSentAt;
+    if (!force && movedM(S.lastSentPos, S.last) < 1 && gap < HEARTBEAT) return;
+    if (gap < MIN_GAP) {
+      if (!S.sendTimer) S.sendTimer = setTimeout(() => { S.sendTimer = null; send(true); }, MIN_GAP - gap);
+      return;
+    }
+    S.lastSentAt = now;
+    S.lastSentPos = { ...S.last };
+    const msg = {
+      v: 1, t: 'loc', pid: S.pid, name: S.name, ts: now,
+      lat: Math.round(S.last.lat * 1e6) / 1e6,
+      lng: Math.round(S.last.lng * 1e6) / 1e6,
+      acc: Math.round(S.last.acc),
+    };
+    const topic = S.myTopic;
+    seal(msg).then((payload) => {
+      for (const c of S.clients) if (c.connected) c.publish(topic, payload, { qos: 0, retain: true });
+    });
+  }
+
+  // ================= 画面 =================
+  function renderStatus() {
+    const dot = $('#statusDot'), txt = $('#statusText');
+    if (S.geoState === 'bad') { dot.className = 'dot bad'; txt.textContent = S.geoMsg; return; }
+    if (S.key && connectedCount() === 0) {
+      dot.className = 'dot wait'; txt.textContent = '中継サーバーに接続しています…'; return;
+    }
+    if (!S.key) { dot.className = 'dot wait'; txt.textContent = S.geoState === 'ok' ? 'ルームを準備しています…' : S.geoMsg; return; }
+    if (S.geoState === 'ok') {
+      dot.className = 'dot ok';
+      txt.textContent = `あなたの位置を共有中（精度 ±${Math.round(S.myAcc)} m）· ほかの人の画面には距離だけが出ます`;
+    } else {
+      dot.className = 'dot ' + S.geoState; txt.textContent = S.geoMsg;
+    }
+  }
+
+  function makeCard() {
+    const el = document.createElement('article');
+    el.className = 'person';
+    el.innerHTML =
+      '<div class="row"><span class="name"></span><span class="meta"></span></div>' +
+      '<div class="dist"></div>' +
+      '<div class="track"><i class="tick" style="left:20%"></i><i class="tick" style="left:40%"></i>' +
+      '<i class="tick" style="left:60%"></i><i class="tick" style="left:80%"></i><i class="tick" style="left:100%"></i>' +
+      '<i class="fill"></i><i class="me"></i><i class="them"></i></div>';
+    return el;
+  }
+
+  function render() {
+    if (!S.room) return;
+    const now = Date.now();
+    for (const [pid, p] of S.peers) if (now - p.ts > FORGET_AFTER) S.peers.delete(pid);
+
+    const me = S.last;
+    const people = [...S.peers.entries()].map(([pid, p]) => {
+      const age = Math.max(0, Math.round((now - p.ts) / 1000));
+      return {
+        pid, ...p, age,
+        online: now - p.ts < OFFLINE_AFTER,
+        distance: me ? Math.round(haversine(me, p)) : null,
+        uncertainty: me && p.acc != null ? Math.round(S.myAcc + p.acc) : null,
+      };
+    }).sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) || a.name.localeCompare(b.name));
+
+    const list = $('#list');
+    const seen = new Set();
+    for (const o of people) {
+      seen.add(o.pid);
+      let el = S.cards.get(o.pid);
+      if (!el) { el = makeCard(); S.cards.set(o.pid, el); }
+      el.classList.toggle('off', !o.online);
+      el.querySelector('.name').textContent = o.name;
+
+      const meta = [];
+      if (o.uncertainty != null) meta.push(`±${o.uncertainty}m`);
+      if (!o.online) meta.push('接続切れ');
+      meta.push(ago(o.age));
+      el.querySelector('.meta').textContent = meta.join(' · ');
+
+      const dist = el.querySelector('.dist');
+      dist.textContent = '';
+      const track = el.querySelector('.track');
+      if (o.distance != null) {
+        const [n, u] = fmt(o.distance);
+        const num = document.createElement('span'); num.className = 'num'; num.textContent = n;
+        const unit = document.createElement('span'); unit.className = 'unit'; unit.textContent = u;
+        dist.append(num, unit);
+        if (o.uncertainty != null && o.distance < o.uncertainty) {
+          const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = '誤差の範囲内';
+          dist.append(tag);
+        }
+        const p = scale(o.distance) * 100;
+        track.hidden = false;
+        track.querySelector('.them').style.left = `${p}%`;
+        track.querySelector('.fill').style.width = `calc(${p}% + 12px)`;
+      } else {
+        const pend = document.createElement('span'); pend.className = 'pending';
+        pend.textContent = 'あなたの位置を取得中…';
+        dist.append(pend);
+        track.hidden = true;
+      }
+    }
+    // 距離順に並べる（すでに正しい位置にあれば動かさない）
+    people.forEach((o, i) => {
+      const el = S.cards.get(o.pid);
+      if (list.children[i] !== el) list.insertBefore(el, list.children[i] || null);
+    });
+    for (const [pid, el] of S.cards) if (!seen.has(pid)) { el.remove(); S.cards.delete(pid); }
+
+    const none = people.length === 0;
+    $('#empty').hidden = !none;
+    $('#axis').hidden = none;
+
+    const pairs = [];
+    for (let i = 0; i < people.length; i++) {
+      for (let j = i + 1; j < people.length; j++) {
+        pairs.push({ a: people[i].name, b: people[j].name, d: Math.round(haversine(people[i], people[j])) });
+      }
+    }
+    pairs.sort((x, y) => x.d - y.d);
+    const ul = $('#pairs');
+    ul.textContent = '';
+    for (const p of pairs) {
+      const li = document.createElement('li');
+      const who = document.createElement('span'); who.className = 'who';
+      const a = document.createElement('b'); a.textContent = p.a;
+      const b = document.createElement('b'); b.textContent = p.b;
+      who.append(a, ' ↔ ', b);
+      const dd = document.createElement('span'); dd.className = 'd'; dd.textContent = fmt(p.d).join(' ');
+      li.append(who, dd);
+      ul.append(li);
+    }
+    $('#pairsWrap').hidden = pairs.length === 0;
+    renderStatus();
+  }
+
+  // ================= 招待・退出・画面維持 =================
+  async function share() {
+    const url = `${location.origin}${location.pathname}#${S.room}`;
+    const text = `kyori のルーム ${prettyCode(S.room)} に参加して。お互いの距離だけが表示されます。`;
+    if (navigator.share) {
+      try { await navigator.share({ title: 'kyori', text, url }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    try { await navigator.clipboard.writeText(url); toast('招待リンクをコピーしました'); }
+    catch (_) { toast(url); }
+  }
+  $('#share').addEventListener('click', share);
+  $('#share2').addEventListener('click', share);
+
+  $('#leave').addEventListener('click', async () => {
+    S.session++;
+    const clients = S.clients, topic = S.myTopic;
+    stopGeo();
+    clearInterval(S.beat); clearInterval(S.tick); clearTimeout(S.sendTimer); S.sendTimer = null;
+    releaseWake();
+
+    // 退出を知らせ、中継サーバー上の自分のデータを消してから切断
+    if (S.key && clients.length) {
+      try {
+        const bye = await seal({ v: 1, t: 'bye', pid: S.pid, ts: Date.now() });
+        await Promise.race([
+          Promise.all(clients.filter((c) => c.connected).map((c) => new Promise((res) => {
+            c.publish(topic, bye, { qos: 0, retain: false });
+            c.publish(topic, '', { qos: 0, retain: true }, () => res());
+          }))),
+          new Promise((res) => setTimeout(res, 1500)),
+        ]);
+      } catch (_) {}
+    }
+    clients.forEach((c) => { try { c.end(false); } catch (_) {} });
+
+    Object.assign(S, { clients: [], room: null, key: null, topicId: null, myTopic: null, last: null, lastSentPos: null, lastSentAt: 0, geoState: 'wait' });
+    S.peers.clear(); S.gone.clear();
+    S.cards.forEach((el) => el.remove()); S.cards.clear();
+    history.replaceState(null, '', `${location.pathname}${location.search}`);
+    $('#room').hidden = true; $('#entry').hidden = false;
+    setupEntry();
+    document.title = 'kyori — 距離だけを共有する';
+    toast('退出しました');
+  });
+
+  async function requestWake() {
+    try { if ('wakeLock' in navigator && document.visibilityState === 'visible') S.wake = await navigator.wakeLock.request('screen'); }
+    catch (_) {}
+  }
+  function releaseWake() { try { S.wake && S.wake.release(); } catch (_) {} S.wake = null; }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !S.room) return;
+    requestWake();
+    navigator.geolocation.getCurrentPosition(onPos, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    S.clients.forEach((c) => { if (!c.connected && !c.reconnecting) { try { c.reconnect(); } catch (_) {} } });
+  });
+})();
+</script>
+</body>
+</html>
