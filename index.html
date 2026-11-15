@@ -343,7 +343,7 @@
   <section id="gatherLobby" hidden>
     <div class="gcard">
       <b>集合ゲーム</b>
-      <p class="hint">距離だけを頼りに全員で集まるゲーム。全員がおたがい <span id="gRadiusTxt">20</span>m 以内に集まったらクリア。スタートするとモードが固定され、終了まで全員の動きが記録されます。</p>
+      <p class="hint"><span id="gHow">距離だけ</span>を頼りに全員で集まるゲーム。全員がおたがい <span id="gRadiusTxt">20</span>m 以内に集まったらクリア。スタートするとモードが固定され、終了まで全員の動きが記録されます。</p>
       <details>
         <summary id="gSettingSum">設定</summary>
         <div class="setting"><span>集合とみなす距離（全員がおたがいこの距離以内）</span><div class="seg" data-gkey="radius">
@@ -1001,7 +1001,7 @@
   // ================= 集合ゲームの判定 =================
   function gatherInfo(now) {
     const q = S.state.gather;
-    if (S.state.mode !== 'distance' || q.phase === 'lobby') return null;
+    if ((S.state.mode !== 'distance' && S.state.mode !== 'direction') || q.phase === 'lobby') return null;
     const end = q.duration > 0 ? q.startAt + q.duration * 1000 : Infinity;
     let result = q.phase === 'ended' ? q.result || 'stopped' : null;
     let endAt = q.phase === 'ended' ? q.endAt || now : null;
@@ -1312,7 +1312,10 @@
         .map((o) => ({ o, opt: { dist: true, track: true, dim: !o.online, meta: liveMeta(o, true) } }));
       empty = people.length === 0;
     } else if (mode === 'direction') {
-      hint = 'おたがいの方角だけが見えます（距離は出ません。並び順も名前順です）。';
+      hint = ga && !ga.ended ? '集合ゲーム中：モードは固定されています。おたがいの方角だけが見えます（距離は出ません）。'
+        : 'おたがいの方角だけが見えます（距離は出ません。並び順も名前順です）。';
+      if (!ga) renderGatherLobby(now);
+      else renderGatherHud(ga, prog, now);
       items = people.sort(byName).map((o) => ({ o, opt: { dir: true, dim: !o.online, meta: liveMeta(o, false) } }));
       empty = people.length === 0;
     } else {
@@ -1340,7 +1343,7 @@
 
     renderLateJoin(gi, ga, now);
     $('#tagLobby').hidden = !(mode === 'tag' && !gi);
-    $('#gatherLobby').hidden = !(mode === 'distance' && !ga);
+    $('#gatherLobby').hidden = !((mode === 'distance' || mode === 'direction') && !ga);
     $('#tagHud').hidden = !running;
     $('#tagResult').hidden = !((gi && gi.ended) || (ga && ga.ended));
     $('#teamWrap').hidden = !(gi || ga);
@@ -1625,6 +1628,7 @@
       seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.val === v)));
     });
     $('#gRadiusTxt').textContent = q.radius;
+    $('#gHow').textContent = S.state.mode === 'direction' ? '方角だけ' : '距離だけ';
     const lim = q.duration === 0 ? 'なし' : q.duration < 60 ? `${q.duration}秒` : `${q.duration / 60}分`;
     $('#gSettingSum').textContent = `設定：集合 ${q.radius}m・制限時間 ${lim}`;
     const n = presentPlayers(now).length;
@@ -1654,7 +1658,8 @@
       else if (Gat.since) msg = `集合判定中…（全員が ${q.radius}m 以内にいます。このまま3秒）`;
       else {
         msg = `全員がおたがい ${q.radius}m 以内に集まったらクリア。`;
-        if (prog && prog.max != null) msg += `いちばん離れている2人：${fmt(prog.max).join(' ')}`;
+        if (S.state.mode === 'direction') { if (prog && prog.max == null) msg += '全員の位置がそろうのを待っています…'; }
+        else if (prog && prog.max != null) msg += `いちばん離れている2人：${fmt(prog.max).join(' ')}`;
         else if (prog) msg += '全員の位置がそろうのを待っています…';
         if (prog && prog.dropped && prog.dropped.length) msg += `（接続が切れている${prog.dropped.map(nameOf).join('、')}は判定から外しています）`;
       }
@@ -1818,7 +1823,7 @@
     return {
       id: r.id, kind: r.kind === 'gather' ? 'gather' : 'tag', startAt: r.startAt, endAt: r.endAt, done: !!r.done,
       aborted: !!r.aborted, winner: r.winner || null, result: r.result || null,
-      oniName: r.oni ? (r.names[r.oni] || 'だれか') : null, n: recPlayers(r).length,
+      oniName: r.oni ? (r.names[r.oni] || 'だれか') : null, n: recPlayers(r).length, view: r.view === 'direction' ? 'direction' : null,
     };
   }
   function storeRecord(r) {
@@ -1895,7 +1900,7 @@
       const q = ga.q;
       return {
         kind: 'gather', startAt: q.startAt, ended: ga.ended,
-        make: () => ({ kind: 'gather', duration: q.duration, radius: q.radius, players: q.players.slice(), names: { ...q.names }, result: null }),
+        make: () => ({ kind: 'gather', view: S.state.mode === 'direction' ? 'direction' : 'distance', duration: q.duration, radius: q.radius, players: q.players.slice(), names: { ...q.names }, result: null }),
         update: (r) => {
           for (const p of q.players) if (!r.players.includes(p)) r.players.push(p);
           Object.assign(r.names, q.names);
@@ -1941,7 +1946,7 @@
     const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     if (e.kind === 'gather') {
       const res = e.aborted ? '中止' : e.result === 'gathered' ? `集合完了（${mmss(e.endAt - e.startAt)}）` : e.result === 'timeup' ? '時間切れ' : `終了（${mmss(Math.max(0, e.endAt - e.startAt))}）`;
-      return { title: `${when} · 集合ゲーム`, sub: `${e.n}人 · ${res}` };
+      return { title: `${when} · 集合ゲーム${e.view === 'direction' ? '（方角だけ）' : ''}`, sub: `${e.n}人 · ${res}` };
     }
     const res = e.aborted ? '中止' : e.winner === 'oni' ? `鬼の勝ち（${mmss(e.endAt - e.startAt)}）` : '逃げる人の勝ち';
     return { title: `${when} · 鬼ごっこ（鬼 ${e.oniName || 'だれか'}）`, sub: `1対${Math.max(0, e.n - 1)} · ${res}` };
@@ -2009,6 +2014,7 @@
       endAt: Number.isFinite(x.endAt) ? x.endAt : x.startAt + Math.max(1, x.duration) * 1000,
       winner: kind === 'tag' ? (x.winner === 'oni' ? 'oni' : 'runners') : null,
       result: kind === 'gather' && GATHER_RESULTS.includes(x.result) ? x.result : null,
+      view: kind === 'gather' && x.view === 'direction' ? 'direction' : undefined,
     };
   }
   $('#recImport').addEventListener('change', async (e) => {
@@ -2305,7 +2311,7 @@
 
     if (ga) {
       const q = ga.q;
-      m.show = '集合ゲーム';
+      m.show = mode === 'direction' ? '集合ゲーム（方角）' : '集合ゲーム';
       if (ga.phase === 'countdown') m.timer = { label: 'スタートまで', text: String(Math.ceil((q.startAt - now) / 1000)) };
       else if (ga.ended) m.timer = { label: ga.result === 'gathered' ? 'タイム' : '経過', ms: Math.max(0, ga.endAt - q.startAt) };
       else if (q.duration > 0) m.timer = { label: '残り', ms: ga.end - now, low: ga.end - now < 60000 };
@@ -2321,7 +2327,13 @@
       const spread = gatherSpread(ga);
       if (Gat.since) m.hero = { kind: 'text', label: '全員そろった！', text: '判定中…' };
       else if (spread == null) m.hero = { kind: 'text', label: '集合まで', text: '位置を待っています', small: true };
-      else m.hero = { kind: 'dist', label: '集合まで あと', value: Math.max(0, spread - q.radius) };
+      else if (mode === 'direction') {
+        // 方角だけ：距離は出さない。名前順のいちばん上の人の方角を大きく
+        const ps = people.filter((o) => q.players.includes(o.pid) && o.distance != null).sort(byName);
+        m.hero = ps.length ? heroOf(ps[0], { dir: true }, `${ps[0].name} は`) : { kind: 'text', label: '', text: '位置を待っています', small: true };
+        m.rows = ps.slice(1, 4).map((o) => rowOf(o, { dir: true }));
+        return m;
+      } else m.hero = { kind: 'dist', label: '集合まで あと', value: Math.max(0, spread - q.radius) };
       if (!S.gm) {
         m.rows = people.filter((o) => q.players.includes(o.pid) && o.distance != null)
           .sort((a, b) => a.distance - b.distance).slice(0, 3).map((o) => rowOf(o, { dist: true }));
